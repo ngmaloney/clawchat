@@ -320,7 +320,7 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
           }}
         />
 
-        {isStreaming ? (
+        {isStreaming && (
           <button
             onClick={onAbort}
             title="Stop generation"
@@ -339,27 +339,26 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
           >
             ■ Stop
           </button>
-        ) : (
-          <button
-            onClick={handleSend}
-            disabled={disabled || !text.trim()}
-            title={isStreaming ? "Send message (will queue)" : "Send message"}
-            style={{
-              padding: '0.625rem 1rem',
-              backgroundColor: (!text.trim() || disabled) ? '#333' : '#e85d04',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              cursor: (!text.trim() || disabled) ? 'not-allowed' : 'pointer',
-              flexShrink: 0,
-              lineHeight: 1.5,
-            }}
-          >
-            Send
-          </button>
         )}
+        <button
+          onClick={handleSend}
+          disabled={disabled || !text.trim()}
+          title={isStreaming ? 'Send message (queued)' : 'Send message'}
+          style={{
+            padding: '0.625rem 1rem',
+            backgroundColor: (!text.trim() || disabled) ? '#333' : '#f59e0b',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            cursor: (!text.trim() || disabled) ? 'not-allowed' : 'pointer',
+            flexShrink: 0,
+            lineHeight: 1.5,
+          }}
+        >
+          {isStreaming ? 'Queue' : 'Send'}
+        </button>
       </div>
     </div>
   )

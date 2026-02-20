@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('api', {
   },
   dialog: {
     openFile: () => ipcRenderer.invoke('dialog:openFile') as Promise<string[]>,
+    saveFile: (defaultName: string, content: string) =>
+      ipcRenderer.invoke('dialog:saveFile', defaultName, content) as Promise<boolean>,
   },
   file: {
     read: (path: string) => ipcRenderer.invoke('file:read', path) as Promise<{
@@ -18,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
       size: number
     }>,
   },
+  flashFrame: () => ipcRenderer.send('app:flashFrame'),
 })
 
 // Keep legacy ipcRenderer bridge for compatibility

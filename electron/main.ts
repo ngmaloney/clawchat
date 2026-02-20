@@ -52,6 +52,30 @@ ipcMain.handle('dialog:openFile', async () => {
   return result.filePaths
 })
 
+// Save file dialog handler
+ipcMain.handle('dialog:saveFile', async (_event, defaultName: string, content: string) => {
+  const result = await dialog.showSaveDialog({
+    defaultPath: defaultName,
+    filters: [
+      { name: 'Markdown', extensions: ['md'] },
+      { name: 'Text', extensions: ['txt'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  })
+  if (!result.canceled && result.filePath) {
+    await fs.writeFile(result.filePath, content, 'utf-8')
+    return true
+  }
+  return false
+})
+
+// Flash frame handler (notification attention)
+ipcMain.on('app:flashFrame', () => {
+  if (win && !win.isFocused()) {
+    win.flashFrame(true)
+  }
+})
+
 // File read handler
 ipcMain.handle('file:read', async (_event, filePath: string) => {
   try {
@@ -124,7 +148,7 @@ function createWindow() {
     height: 768,
     minWidth: 480,
     minHeight: 400,
-    icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
+    icon: path.join(process.env.VITE_PUBLIC, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
@@ -180,7 +204,7 @@ app.on('activate', () => {
 
 app.whenReady().then(() => {
   // Set app name (important for macOS menu)
-  app.setName('ClawChat')
+  app.setName('Gideon')
   
   createWindow()
   
@@ -196,7 +220,7 @@ app.whenReady().then(() => {
   const isMac = process.platform === 'darwin'
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac ? [{
-      label: 'ClawChat',
+      label: 'Gideon',
       submenu: [
         { role: 'about' as const },
         { type: 'separator' as const },

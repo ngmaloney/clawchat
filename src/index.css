@@ -84,6 +84,17 @@ button:focus-visible {
   50% { opacity: 0.5; }
 }
 
+@keyframes bounce-dots {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes streaming-bar {
+  0% { left: 0; width: 30%; }
+  50% { left: 70%; width: 30%; }
+  100% { left: 0; width: 30%; }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

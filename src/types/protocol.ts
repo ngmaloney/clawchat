@@ -160,6 +160,9 @@ export interface SessionInfo {
   channel?: string
   model?: string
   totalTokens?: number
+  contextTokens?: number
+  inputTokens?: number
+  outputTokens?: number
   [key: string]: unknown
 }
 

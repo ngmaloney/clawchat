@@ -10,6 +10,7 @@ declare global {
       }
       dialog: {
         openFile: () => Promise<string[]>
+        saveFile: (defaultName: string, content: string) => Promise<boolean>
       }
       file: {
         read: (path: string) => Promise<{
@@ -19,6 +20,7 @@ declare global {
           size: number
         }>
       }
+      flashFrame: () => void
     }
   }
 }

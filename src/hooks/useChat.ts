@@ -9,6 +9,8 @@ import type {
   ConnectionStatus,
   ChatAttachment,
 } from '../types/protocol'
+import type { AppSettings } from './useSettings'
+import type { ToolApprovalRequest } from '../components/ToolApprovalCard'
 
 export interface DisplayMessage {
   id: string
@@ -27,6 +29,8 @@ export interface ChatHandle {
   loadHistory: (sessionKey: string) => Promise<void>
   isStreaming: boolean
   historyLoading: boolean
+  approvalRequests: ToolApprovalRequest[]
+  respondToApproval: (requestId: string, approved: boolean) => void
 }
 
 let _msgId = 0
@@ -41,26 +45,24 @@ function uuid(): string {
 const MAX_ATTACHMENT_SIZE = 500 * 1024 // 500KB
 
 function stripLargeDataUris(text: string): string {
-  // Remove data URI images larger than 500KB to prevent browser errors
   const dataUriPattern = /!\[([^\]]*)\]\(data:(image\/[^;]+);base64,([^)]+)\)/g
-  
+
   return text.replace(dataUriPattern, (match, alt, _mimeType, base64Data) => {
     const cleanedBase64 = base64Data.replace(/\s/g, '')
     const estimatedSize = (cleanedBase64.length * 3) / 4
-    
+
     if (estimatedSize > MAX_ATTACHMENT_SIZE) {
       const sizeKB = Math.round(estimatedSize / 1024)
       return `[Image too large: ${alt || 'image.png'} (~${sizeKB}KB)]`
     }
-    
-    // Keep small data URIs as-is
+
     return match
   })
 }
 
 function filterLargeAttachments(attachments?: ChatAttachment[]): ChatAttachment[] | undefined {
   if (!attachments || attachments.length === 0) return undefined
-  
+
   const filtered = attachments.filter(att => {
     if (!att.content) return true
     const size = (att.content.length * 3) / 4
@@ -70,39 +72,110 @@ function filterLargeAttachments(attachments?: ChatAttachment[]): ChatAttachment[
     }
     return true
   })
-  
+
   return filtered.length > 0 ? filtered : undefined
+}
+
+/**
+ * Strip the gateway's system preamble injected before user messages.
+ * Matches everything from the start up through the metadata JSON block
+ * and optional timestamp prefix, regardless of what comes before it.
+ */
+function stripGatewayPreamble(text: string): string {
+  // Find "Conversation info (untrusted metadata):" anywhere from the start
+  const marker = 'Conversation info (untrusted metadata):'
+  const idx = text.indexOf(marker)
+  if (idx === -1) return text
+
+  // Only strip if the marker is near the start (within first 500 chars — it's a preamble)
+  if (idx > 500) return text
+
+  // Find the closing brace of the JSON block after the marker
+  const afterMarker = text.indexOf('{', idx + marker.length)
+  if (afterMarker === -1) return text
+
+  // Find matching closing brace
+  let braceDepth = 0
+  let jsonEnd = -1
+  for (let i = afterMarker; i < text.length; i++) {
+    if (text[i] === '{') braceDepth++
+    else if (text[i] === '}') {
+      braceDepth--
+      if (braceDepth === 0) { jsonEnd = i; break }
+    }
+  }
+
+  // If we couldn't find matching braces, bail — return original
+  if (jsonEnd === -1) return text
+
+  // Skip past the JSON block and any trailing whitespace
+  let start = jsonEnd + 1
+  while (start < text.length && (text[start] === '\n' || text[start] === '\r' || text[start] === ' ')) {
+    start++
+  }
+
+  // Skip optional timestamp like [Fri 2026-02-20 01:12 CST]
+  if (start < text.length && text[start] === '[') {
+    const closeBracket = text.indexOf(']', start)
+    if (closeBracket !== -1 && closeBracket - start < 60) {
+      start = closeBracket + 1
+      // Skip trailing space after timestamp
+      while (start < text.length && text[start] === ' ') start++
+    }
+  }
+
+  // Safety: if stripping would leave nothing, return original
+  const result = text.slice(start).trim()
+  if (!result) return text
+
+  return result
+}
+
+/**
+ * Strip standalone timestamp prefix like [Fri 2026-02-20 01:12 CST]
+ * that appears at the start of messages without the full preamble.
+ */
+function stripTimestampPrefix(text: string): string {
+  if (!text.startsWith('[')) return text
+  const closeBracket = text.indexOf(']')
+  if (closeBracket === -1 || closeBracket > 60) return text
+  // Verify it looks like a timestamp (contains a date-like pattern)
+  const bracket = text.slice(0, closeBracket + 1)
+  if (!/\d{4}-\d{2}-\d{2}/.test(bracket)) return text
+  const result = text.slice(closeBracket + 1).trim()
+  return result || text
 }
 
 function extractText(msg: ChatMessage): string {
   if (!msg || !msg.content) return ''
-  // Handle content as plain string (common for user messages in history)
-  if (typeof msg.content === 'string') return stripLargeDataUris(msg.content)
-  // Handle content as array of blocks
+  if (typeof msg.content === 'string') return stripTimestampPrefix(stripGatewayPreamble(stripLargeDataUris(msg.content)))
   if (!Array.isArray(msg.content) || msg.content.length === 0) return ''
   const text = msg.content
     .filter((b) => b && b.type === 'text' && b.text)
     .map((b) => b.text)
     .join('')
-  return stripLargeDataUris(text)
+  return stripTimestampPrefix(stripGatewayPreamble(stripLargeDataUris(text)))
 }
 
 export function useChat(
   client: GatewayClient | null,
   status: ConnectionStatus,
   activeSessionKey: string,
+  settings?: AppSettings,
 ): ChatHandle {
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [approvalRequests, setApprovalRequests] = useState<ToolApprovalRequest[]>([])
   const activeRunIdRef = useRef<string | null>(null)
   const sessionKeyRef = useRef(activeSessionKey)
-  // Cache messages per session to avoid losing local state on session switch
   const messagesCacheRef = useRef<Map<string, DisplayMessage[]>>(new Map())
+  const wasStreamingRef = useRef(false)
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
 
-  // Keep ref in sync
   sessionKeyRef.current = activeSessionKey
-  
+
   // Cache current messages when they change
   useEffect(() => {
     if (activeSessionKey && messages.length > 0) {
@@ -110,13 +183,28 @@ export function useChat(
     }
   }, [activeSessionKey, messages])
 
+  // Notification on completion
+  useEffect(() => {
+    if (wasStreamingRef.current && !isStreaming) {
+      // Streaming just ended
+      if (document.hidden && settingsRef.current?.notifyOnComplete !== false) {
+        try {
+          new Notification('Gideon', { body: 'Response complete' })
+        } catch { /* notification permission not granted */ }
+        try {
+          window.api.flashFrame()
+        } catch { /* IPC not available */ }
+      }
+    }
+    wasStreamingRef.current = isStreaming
+  }, [isStreaming])
+
   // Subscribe to chat events
   useEffect(() => {
     if (!client) return
 
     const unsub = client.on('chat', (payload) => {
       const ev = payload as unknown as ChatEventPayload
-      // Only process events for the active session
       if (ev.sessionKey !== sessionKeyRef.current) return
 
       if (ev.state === 'delta') {
@@ -129,7 +217,6 @@ export function useChat(
             updated[idx] = { ...updated[idx], text, attachments, streaming: true }
             return updated
           }
-          // First delta — create streaming message
           return [...prev, {
             id: newMsgId(),
             role: 'assistant' as const,
@@ -193,16 +280,57 @@ export function useChat(
     return unsub
   }, [client])
 
+  // Subscribe to exec.approval.request events (tool approval)
+  useEffect(() => {
+    if (!client) return
+
+    const unsub = client.on('exec.approval.request', (payload) => {
+      const req = payload as unknown as {
+        requestId: string
+        toolName: string
+        args?: Record<string, unknown>
+        sessionKey: string
+      }
+
+      // Only process for active session
+      if (req.sessionKey !== sessionKeyRef.current) return
+
+      // If tool approval is disabled, auto-approve
+      if (!settingsRef.current?.toolApprovalEnabled) {
+        client.call('exec.approval.respond', {
+          requestId: req.requestId,
+          approved: true,
+        }).catch((err) => console.error('[useChat] Failed to auto-approve:', err))
+        return
+      }
+
+      setApprovalRequests((prev) => [...prev, {
+        requestId: req.requestId,
+        toolName: req.toolName,
+        args: req.args,
+        sessionKey: req.sessionKey,
+      }])
+    })
+
+    return unsub
+  }, [client])
+
+  const respondToApproval = useCallback((requestId: string, approved: boolean) => {
+    if (!client || status !== 'connected') return
+    client.call('exec.approval.respond', { requestId, approved })
+      .catch((err) => console.error('[useChat] Failed to respond to approval:', err))
+    setApprovalRequests((prev) => prev.filter((r) => r.requestId !== requestId))
+  }, [client, status])
+
   // Load history when session changes
   const loadHistory = useCallback(async (sessionKey: string) => {
     if (!client || status !== 'connected') return
-    
-    // Restore from cache immediately if available (for instant UI feedback)
+
     const cached = messagesCacheRef.current.get(sessionKey)
     if (cached) {
       setMessages(cached)
     }
-    
+
     setHistoryLoading(true)
     try {
       const res = await client.call('chat.history', {
@@ -220,14 +348,11 @@ export function useChat(
           attachments: filterLargeAttachments(m.attachments),
           streaming: false,
         }))
-      
-      // Update messages with fresh history from gateway
+
       setMessages(history)
-      // Update cache with fresh data
       messagesCacheRef.current.set(sessionKey, history)
     } catch (err) {
       console.error('[useChat] Failed to load history:', err)
-      // Don't clear messages on error - keep the cached version if we have it
       if (!cached) {
         setMessages([])
       }
@@ -236,39 +361,30 @@ export function useChat(
     }
   }, [client, status])
 
-  // Track the last session we loaded history for
   const lastLoadedSessionRef = useRef<string | null>(null)
-  
-  // Reload history when active session changes
+
   useEffect(() => {
-    // Only load history when connected and session key is available
     if (status === 'connected' && activeSessionKey) {
-      // Only reload if this is a different session OR we have no messages cached
       const isDifferentSession = lastLoadedSessionRef.current !== activeSessionKey
       const hasNoCache = !messagesCacheRef.current.has(activeSessionKey)
-      
+
       if (isDifferentSession || hasNoCache) {
         void loadHistory(activeSessionKey)
         lastLoadedSessionRef.current = activeSessionKey
       }
-      // If same session and we have cache, don't reload (preserves failed messages)
     } else if (!activeSessionKey) {
-      // Only clear messages if there's no active session
       setMessages([])
       lastLoadedSessionRef.current = null
     }
-    // If disconnected but session key exists, keep existing messages
-    // (don't clear on temporary disconnections)
-    
-    // Reset streaming state on session switch
+
     activeRunIdRef.current = null
     setIsStreaming(false)
+    setApprovalRequests([])
   }, [activeSessionKey, status, loadHistory])
 
   const send = useCallback(async (text: string, attachments?: ChatAttachment[]) => {
     if (!client || status !== 'connected' || !text.trim()) return
 
-    // Append user message immediately
     const userMsg: DisplayMessage = {
       id: newMsgId(),
       role: 'user',
@@ -284,13 +400,19 @@ export function useChat(
         sessionKey: string
         message: string
         idempotencyKey: string
+        thinking?: string
         attachments?: ChatAttachment[]
       } = {
         sessionKey: sessionKeyRef.current,
         message: text.trim(),
         idempotencyKey: uuid(),
       }
-      
+
+      // Include thinking level if not off
+      if (settingsRef.current?.thinkingLevel && settingsRef.current.thinkingLevel !== 'off') {
+        params.thinking = settingsRef.current.thinkingLevel
+      }
+
       if (attachments && attachments.length > 0) {
         params.attachments = attachments
       }
@@ -300,16 +422,15 @@ export function useChat(
       activeRunIdRef.current = ack.runId ?? null
     } catch (err) {
       console.error('[useChat] Failed to send:', err)
-      
+
       let errorMsg = err instanceof Error ? err.message : 'Failed to send message'
-      
-      // Detect WebSocket 1009 "Message Too Large" error
+
       if (errorMsg.includes('1009') || errorMsg.toLowerCase().includes('too large')) {
         const maxPayloadBytes = client?.getMaxPayload() || 1048576
         const maxPayloadMB = (maxPayloadBytes / (1024 * 1024)).toFixed(1)
         errorMsg = `**📎 File too large to send**\n\nThis attachment exceeds the ${maxPayloadMB}MB gateway limit.\n\n**Quick fix:** Try compressing or resizing the image first.\n\n**Advanced:** You can increase the gateway limit by editing \`~/.openclaw/openclaw.json\` - see docs.openclaw.ai for details.`
       }
-      
+
       setMessages((prev) => [...prev, {
         id: newMsgId(),
         role: 'assistant',
@@ -330,7 +451,6 @@ export function useChat(
     } catch (err) {
       console.error('[useChat] Failed to abort:', err)
     }
-    // Streaming end will be handled by the final/error event
   }, [client, status])
 
   return {
@@ -340,5 +460,7 @@ export function useChat(
     loadHistory,
     isStreaming,
     historyLoading,
+    approvalRequests,
+    respondToApproval,
   }
 }

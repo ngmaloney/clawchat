@@ -1,9 +1,19 @@
 import type { ConnectionStatus } from '../types/protocol'
+import type { ModelInfo } from '../hooks/useGatewayCapabilities'
+import type { AppSettings } from '../hooks/useSettings'
+import { ModelSwitcher } from './ModelSwitcher'
+import { ThinkingToggle } from './ThinkingToggle'
 
 interface StatusBarProps {
   status: ConnectionStatus
   activeSession: string
   model?: string
+  models: ModelInfo[]
+  thinkingLevel: AppSettings['thinkingLevel']
+  onModelSwitch: (modelId: string) => void
+  onThinkingChange: (level: AppSettings['thinkingLevel']) => void
+  totalTokens?: number
+  contextTokens?: number
   onDisconnect: () => void
 }
 
@@ -23,7 +33,33 @@ const statusLabels: Record<ConnectionStatus, string> = {
   error: 'Error',
 }
 
-export function StatusBar({ status, activeSession, model, onDisconnect }: StatusBarProps) {
+function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`
+  return String(n)
+}
+
+function contextColor(pct: number): string {
+  if (pct >= 90) return '#ef4444'
+  if (pct >= 70) return '#f59e0b'
+  return '#888'
+}
+
+export function StatusBar({
+  status,
+  activeSession,
+  model,
+  models,
+  thinkingLevel,
+  onModelSwitch,
+  onThinkingChange,
+  totalTokens,
+  contextTokens,
+  onDisconnect,
+}: StatusBarProps) {
+  const hasContext = totalTokens != null && contextTokens != null && contextTokens > 0
+  const pct = hasContext ? Math.round((totalTokens! / contextTokens!) * 100) : 0
+
   return (
     <div style={{
       display: 'flex',
@@ -51,10 +87,16 @@ export function StatusBar({ status, activeSession, model, onDisconnect }: Status
         </div>
         <span style={{ color: '#555' }}>|</span>
         <span style={{ color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeSession}</span>
-        {model && (
+        <span style={{ color: '#555' }}>|</span>
+        <ModelSwitcher currentModel={model} models={models} onSelect={onModelSwitch} />
+        <span style={{ color: '#555' }}>|</span>
+        <ThinkingToggle level={thinkingLevel} onChange={onThinkingChange} />
+        {hasContext && (
           <>
             <span style={{ color: '#555' }}>|</span>
-            <span style={{ color: '#aaa', flexShrink: 0 }}>{model}</span>
+            <span style={{ color: contextColor(pct), flexShrink: 0 }}>
+              {formatTokenCount(totalTokens!)} / {formatTokenCount(contextTokens!)} — {pct}%
+            </span>
           </>
         )}
       </div>

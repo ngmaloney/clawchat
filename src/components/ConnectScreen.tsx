@@ -49,14 +49,14 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
         textAlign: 'center',
         marginBottom: '2rem',
       }}>
-        <span style={{ fontSize: '4rem' }}>🦀</span>
+        <img src="/MyGideon.png" alt="Gideon" style={{ width: '80px', height: '80px', borderRadius: '50%' }} />
         <h1 style={{
           fontSize: '1.5rem',
           fontWeight: 600,
           margin: '0.5rem 0',
           color: '#fff',
         }}>
-          ClawChat
+          Gideon
         </h1>
         <p style={{ color: '#888', fontSize: '0.875rem' }}>
           Connect to your OpenClaw Gateway
@@ -122,7 +122,7 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
           disabled={isConnecting || !url || !token}
           style={{
             padding: '0.75rem',
-            backgroundColor: isConnecting ? '#333' : '#e85d04',
+            backgroundColor: isConnecting ? '#333' : '#f59e0b',
             color: '#fff',
             border: 'none',
             borderRadius: '6px',

@@ -65,7 +65,7 @@ export function SlashCommandMenu({ commands, selectedIndex, onSelect, position }
           }}
         >
           <div style={{
-            color: '#e85d04',
+            color: '#f59e0b',
             fontSize: '0.875rem',
             fontWeight: 600,
             fontFamily: 'monospace',

@@ -5,7 +5,8 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { DisplayMessage } from '../hooks/useChat'
 import type { ComponentPropsWithoutRef } from 'react'
 import { MessageAttachment } from './MessageAttachment'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import { Copy, Check } from 'lucide-react'
 
 interface MessageBubbleProps {
   message: DisplayMessage
@@ -15,7 +16,16 @@ function formatTime(ts?: string | number): string {
   if (!ts) return ''
   try {
     const d = new Date(typeof ts === 'number' ? ts : ts)
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const now = new Date()
+    const isToday = d.getFullYear() === now.getFullYear()
+      && d.getMonth() === now.getMonth()
+      && d.getDate() === now.getDate()
+
+    if (isToday) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+      + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   } catch {
     return ''
   }
@@ -23,12 +33,13 @@ function formatTime(ts?: string | number): string {
 
 export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user'
+  const [hovered, setHovered] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   // Extract data URI images from markdown and convert to attachments
-  // (Large data URIs are already stripped by useChat hook)
   const { processedText, extractedAttachments } = useMemo(() => {
     if (!message.text) return { processedText: '', extractedAttachments: [] }
-    
+
     const dataUriPattern = /!\[([^\]]*)\]\(data:(image\/[^;]+);base64,([^)]+)\)/g
     let text = message.text
     const extracted: Array<{
@@ -37,57 +48,113 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       fileName: string
       content: string
     }> = []
-    
+
     const matches = [...text.matchAll(dataUriPattern)]
-    
+
     for (const match of matches) {
       const [fullMatch, alt, mimeType, base64Data] = match
       try {
-        // Clean up base64 data
         const cleanedBase64 = base64Data.replace(/\s/g, '')
-        
-        // Create attachment object (only small data URIs reach here)
         extracted.push({
           type: 'image',
           mimeType,
           fileName: alt || 'image.png',
           content: cleanedBase64,
         })
-        
-        // Remove the markdown image from text
         text = text.replace(fullMatch, '')
       } catch (err) {
         console.error('[MessageBubble] Failed to extract data URI:', err)
       }
     }
-    
+
     return { processedText: text.trim(), extractedAttachments: extracted }
   }, [message.text])
 
-  // Combine original attachments with extracted ones
   const allAttachments = [...(message.attachments || []), ...extractedAttachments]
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.text || '').then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
   return (
-    <div style={{
-      display: 'flex',
-      justifyContent: isUser ? 'flex-end' : 'flex-start',
-      padding: '0.25rem 1rem',
-      width: '100%',
-      boxSizing: 'border-box',
-    }}>
-      <div style={{
-        maxWidth: '80%',
-        minWidth: '60px',
-        padding: '0.625rem 0.875rem',
-        borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-        backgroundColor: isUser ? '#e85d04' : '#16213e',
-        color: isUser ? '#fff' : '#e0e0e0',
-        border: isUser ? 'none' : '1px solid #2a2a4a',
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: isUser ? 'flex-end' : 'flex-start',
+        alignItems: 'flex-start',
+        gap: isUser ? 0 : '0.5rem',
+        padding: '0.25rem 1rem',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Assistant avatar */}
+      {!isUser && (
+        <img
+          src="/MyGideon.png"
+          alt="Gideon"
+          style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            objectFit: 'cover',
+            flexShrink: 0,
+            marginTop: '1.1rem',
+          }}
+        />
+      )}
+      <div style={{ maxWidth: '75%', minWidth: '60px', display: 'flex', flexDirection: 'column' }}>
+        {/* Name label */}
+        <div style={{
+          fontSize: '0.7rem',
+          fontWeight: 700,
+          color: '#888',
+          marginBottom: '0.15rem',
+          textAlign: isUser ? 'right' : 'left',
+        }}>
+          {isUser ? 'Mark' : 'Gideon'}
+        </div>
+        <div style={{
+          padding: '0.625rem 0.875rem',
+          borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+        backgroundColor: isUser ? '#1e1a0e' : '#16213e',
+        color: isUser ? '#ede0c8' : '#e0e0e0',
+        border: isUser ? '1px solid #f59e0b' : '1px solid #2a2a4a',
         fontSize: '0.875rem',
         lineHeight: 1.5,
         wordBreak: 'break-word',
         position: 'relative',
       }}>
+        {/* Copy button */}
+        {hovered && !message.streaming && message.text && (
+          <button
+            onClick={handleCopy}
+            title="Copy message"
+            style={{
+              position: 'absolute',
+              top: '0.35rem',
+              right: '0.35rem',
+              background: 'rgba(0,0,0,0.5)',
+              border: 'none',
+              borderRadius: '4px',
+              color: copied ? '#22c55e' : '#888',
+              cursor: 'pointer',
+              padding: '0.2rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2,
+            }}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        )}
+
         {/* Error state */}
         {message.error && (
           <div style={{
@@ -173,7 +240,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                     <blockquote
                       {...props}
                       style={{
-                        borderLeft: '3px solid #e85d04',
+                        borderLeft: '3px solid #f59e0b',
                         margin: '0.35rem 0',
                         paddingLeft: '0.75rem',
                         color: '#aaa',
@@ -182,8 +249,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                   )
                 },
                 img(props: ComponentPropsWithoutRef<'img'>) {
-                  // Block data URI images from being rendered by ReactMarkdown
-                  // (they should be extracted and rendered as attachments)
                   if (props.src?.startsWith('data:')) {
                     return null
                   }
@@ -196,17 +261,24 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
 
-        {/* Streaming indicator */}
+        {/* Streaming indicator — animated bar */}
         {message.streaming && (
-          <span style={{
-            display: 'inline-block',
-            width: '6px',
-            height: '14px',
-            backgroundColor: '#e85d04',
-            marginLeft: '2px',
-            animation: 'blink 1s step-end infinite',
-            verticalAlign: 'text-bottom',
-          }} />
+          <div style={{
+            position: 'relative',
+            height: '3px',
+            borderRadius: '2px',
+            backgroundColor: 'rgba(232, 93, 4, 0.15)',
+            marginTop: '0.4rem',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              position: 'absolute',
+              height: '100%',
+              borderRadius: '2px',
+              backgroundColor: '#f59e0b',
+              animation: 'streaming-bar 1.5s ease-in-out infinite',
+            }} />
+          </div>
         )}
 
         {/* Timestamp */}
@@ -220,6 +292,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             {formatTime(message.timestamp)}
           </div>
         )}
+        </div>
       </div>
     </div>
   )
