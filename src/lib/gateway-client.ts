@@ -16,7 +16,14 @@ import type {
   EventFrame,
   ConnectParams,
   ConnectionStatus,
+  DeviceIdentity,
 } from '../types/protocol'
+import {
+  getOrCreateKeyPair,
+  getDeviceId,
+  exportPublicKey,
+  signChallenge,
+} from './device-crypto'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -31,8 +38,10 @@ interface PendingRequest {
 export interface GatewayClientOptions {
   url: string
   token: string
+  deviceToken?: string
   onStatusChange?: (status: ConnectionStatus) => void
   onEvent?: (event: string, payload: Record<string, unknown>) => void
+  onDeviceToken?: (token: string) => void
   maxRetries?: number
   requestTimeoutMs?: number
 }
@@ -59,18 +68,25 @@ export class GatewayClient {
   private intentionalClose = false
   private gatewayMaxPayload: number = 1048576 // Default 1MB
 
+  private challengeNonce: string | null = null
+  private challengeTs: number | null = null
+  private deviceToken: string | undefined
+
   private readonly url: string
   private readonly token: string
   private readonly onStatusChange?: (status: ConnectionStatus) => void
   private readonly onEvent?: (event: string, payload: Record<string, unknown>) => void
+  private readonly onDeviceToken?: (token: string) => void
   private readonly maxRetries: number
   private readonly requestTimeoutMs: number
 
   constructor(opts: GatewayClientOptions) {
     this.url = opts.url
     this.token = opts.token
+    this.deviceToken = opts.deviceToken
     this.onStatusChange = opts.onStatusChange
     this.onEvent = opts.onEvent
+    this.onDeviceToken = opts.onDeviceToken
     this.maxRetries = opts.maxRetries ?? MAX_RETRIES
     this.requestTimeoutMs = opts.requestTimeoutMs ?? REQUEST_TIMEOUT
   }
@@ -206,6 +222,8 @@ export class GatewayClient {
       this.ws.close()
       this.ws = null
     }
+    this.challengeNonce = null
+    this.challengeTs = null
     this._rejectAllPending('Client cleanup')
   }
 
@@ -247,8 +265,10 @@ export class GatewayClient {
   private _handleEvent(frame: EventFrame): void {
     const { event, payload } = frame
 
-    // Handle connect.challenge → perform handshake
+    // Handle connect.challenge → capture nonce, then perform handshake
     if (event === 'connect.challenge') {
+      this.challengeNonce = (payload.nonce as string) ?? null
+      this.challengeTs = (payload.ts as number) ?? null
       this._doHandshake()
       return
     }
@@ -285,16 +305,42 @@ export class GatewayClient {
 
   private async _doHandshake(): Promise<void> {
     console.log('[GatewayClient] Performing connect handshake…')
+
+    // Build device identity only when we already hold a deviceToken
+    // (i.e. the device was previously paired). Sending an unsolicited device
+    // field to a token-auth gateway causes "device signature invalid".
+    let device: DeviceIdentity | undefined
+    if (this.challengeNonce && this.deviceToken) {
+      try {
+        const keyPair = await getOrCreateKeyPair()
+        const [id, publicKey, signature] = await Promise.all([
+          getDeviceId(keyPair.publicKey),
+          exportPublicKey(keyPair.publicKey),
+          signChallenge(keyPair.privateKey, this.challengeNonce),
+        ])
+        device = {
+          id,
+          publicKey,
+          signature,
+          signedAt: this.challengeTs ?? Date.now(),
+          nonce: this.challengeNonce,
+        }
+      } catch (err) {
+        console.warn('[GatewayClient] Failed to build device identity:', err)
+      }
+    }
+
     const params: ConnectParams = {
       role: 'operator',
       scopes: ['operator.read', 'operator.write'],
-      auth: { token: this.token },
+      auth: { token: this.token, ...(this.deviceToken ? { deviceToken: this.deviceToken } : {}) },
+      ...(device ? { device } : {}),
       client: {
-        // Protocol requires allowlisted ID/mode
-        id: 'cli',
-        version: '0.0.1',
+        // Must match gateway's allowlisted Control UI client values
+        id: 'openclaw-control-ui',
+        version: 'dev',
         platform: 'electron',
-        mode: 'ui',
+        mode: 'webchat',
       },
       minProtocol: 3,
       maxProtocol: 3,
@@ -320,14 +366,21 @@ export class GatewayClient {
 
       if ((payload as Record<string, unknown>).type === 'hello-ok') {
         console.log('[GatewayClient] Handshake complete — connected!')
-        
+
         // Extract maxPayload from policy if available
         const snapshot = (payload as any).snapshot
         if (snapshot?.policy?.maxPayload) {
           this.gatewayMaxPayload = snapshot.policy.maxPayload
           console.log('[GatewayClient] Gateway maxPayload:', this.gatewayMaxPayload)
         }
-        
+
+        // Extract and persist deviceToken from hello-ok
+        const authPayload = (payload as any).auth
+        if (authPayload?.deviceToken) {
+          this.deviceToken = authPayload.deviceToken
+          this.onDeviceToken?.(authPayload.deviceToken)
+        }
+
         this.retryCount = 0
         this._setStatus('connected')
       } else {
