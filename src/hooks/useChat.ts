@@ -173,6 +173,7 @@ export function useChat(
   status: ConnectionStatus,
   activeSessionKey: string,
   settings?: AppSettings,
+  modelOverride?: string,
 ): ChatHandle {
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
@@ -183,7 +184,9 @@ export function useChat(
   const messagesCacheRef = useRef<Map<string, DisplayMessage[]>>(new Map())
   const wasStreamingRef = useRef(false)
   const settingsRef = useRef(settings)
+  const modelOverrideRef = useRef(modelOverride)
   settingsRef.current = settings
+  modelOverrideRef.current = modelOverride
 
   sessionKeyRef.current = activeSessionKey
 
@@ -412,6 +415,7 @@ export function useChat(
         message: string
         idempotencyKey: string
         thinking?: string
+        model?: string
         attachments?: ChatAttachment[]
       } = {
         sessionKey: sessionKeyRef.current,
@@ -422,6 +426,11 @@ export function useChat(
       // Include thinking level if not off
       if (settingsRef.current?.thinkingLevel && settingsRef.current.thinkingLevel !== 'off') {
         params.thinking = settingsRef.current.thinkingLevel
+      }
+
+      // Include model override if set
+      if (modelOverrideRef.current) {
+        params.model = modelOverrideRef.current
       }
 
       if (attachments && attachments.length > 0) {

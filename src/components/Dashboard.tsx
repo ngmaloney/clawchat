@@ -20,6 +20,7 @@ interface DashboardProps {
 export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
   const [showStream, setShowStream] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [modelOverrides, setModelOverrides] = useState<Record<string, string>>({})
 
   const { settings, updateSetting } = useSettings()
   const { models, agents } = useGatewayCapabilities(client, status)
@@ -40,18 +41,23 @@ export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
     historyLoading,
     approvalRequests,
     respondToApproval,
-  } = useChat(client, status, activeSessionKey, settings)
+  } = useChat(client, status, activeSessionKey, settings, modelOverrides[activeSessionKey])
 
   const { entries, clear } = useStreamLog(client, status)
 
   // --- Model switch for current session ---
   const handleModelSwitch = useCallback(async (modelId: string) => {
-    if (!client || status !== 'connected' || !activeSessionKey) return
-    try {
-      await client.call('sessions.patch', { sessionKey: activeSessionKey, model: modelId })
-      await refreshSessions()
-    } catch (err) {
-      console.error('[Dashboard] Failed to switch model:', err)
+    if (!activeSessionKey) return
+    // Store locally so StatusBar reflects the change immediately
+    setModelOverrides((prev) => ({ ...prev, [activeSessionKey]: modelId }))
+    // Also try to persist on gateway
+    if (client && status === 'connected') {
+      try {
+        await client.call('sessions.patch', { sessionKey: activeSessionKey, model: modelId })
+        await refreshSessions()
+      } catch {
+        // Gateway may not support sessions.patch — local override still works
+      }
     }
   }, [client, status, activeSessionKey, refreshSessions])
 
@@ -59,14 +65,20 @@ export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
   const handleNewSession = useCallback(async () => {
     if (!client || status !== 'connected') return
     try {
+      // Try gateway-side creation first
       const res = await client.call('sessions.create', {}) as { sessionKey?: string }
       await refreshSessions()
       if (res.sessionKey) {
         setActiveSessionKey(res.sessionKey)
+        return
       }
-    } catch (err) {
-      console.error('[Dashboard] Failed to create session:', err)
+    } catch {
+      // Gateway may not support sessions.create — create client-side key
+      // Session will be auto-created when user sends first message
     }
+    const slug = Math.random().toString(36).slice(2, 8)
+    const newKey = `agent:main:session-${slug}`
+    setActiveSessionKey(newKey)
   }, [client, status, refreshSessions, setActiveSessionKey])
 
   // --- Session rename ---
@@ -241,7 +253,7 @@ export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
       <StatusBar
         status={status}
         activeSession={activeSessionKey}
-        model={activeSession?.model}
+        model={modelOverrides[activeSessionKey] ?? activeSession?.model}
         models={models}
         thinkingLevel={settings.thinkingLevel}
         onModelSwitch={handleModelSwitch}
