@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ConnectionStatus } from '../types/protocol'
+import { GIDEON_AVATAR } from '../constants'
 
 interface ConnectScreenProps {
   onConnect: (url: string, token: string) => void
@@ -49,7 +50,7 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
         textAlign: 'center',
         marginBottom: '2rem',
       }}>
-        <img src="/MyGideon.png" alt="Gideon" style={{ width: '80px', height: '80px', borderRadius: '50%' }} />
+        <img src={GIDEON_AVATAR} alt="Gideon" style={{ width: '80px', height: '80px', borderRadius: '50%' }} />
         <h1 style={{
           fontSize: '1.5rem',
           fontWeight: 600,

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, Settings, Monitor, MessageSquare, Info } from 'lucide-react'
 import type { AppSettings } from '../hooks/useSettings'
 import type { ModelInfo, AgentInfo } from '../hooks/useGatewayCapabilities'
+import { GIDEON_AVATAR } from '../constants'
 
 type Tab = 'general' | 'model' | 'session' | 'about'
 
@@ -232,7 +233,7 @@ function AboutTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingTop: '0.5rem' }}>
       <div style={{ textAlign: 'center' }}>
-        <img src="/MyGideon.png" alt="Gideon" style={{ width: '64px', height: '64px', borderRadius: '50%' }} />
+        <img src={GIDEON_AVATAR} alt="Gideon" style={{ width: '64px', height: '64px', borderRadius: '50%' }} />
         <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#fff', marginTop: '0.5rem' }}>
           Gideon
         </div>

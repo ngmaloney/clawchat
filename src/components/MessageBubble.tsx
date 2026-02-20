@@ -7,6 +7,7 @@ import type { ComponentPropsWithoutRef } from 'react'
 import { MessageAttachment } from './MessageAttachment'
 import { useMemo, useState } from 'react'
 import { Copy, Check } from 'lucide-react'
+import { GIDEON_AVATAR } from '../constants'
 
 interface MessageBubbleProps {
   message: DisplayMessage
@@ -96,7 +97,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       {/* Assistant avatar */}
       {!isUser && (
         <img
-          src="/MyGideon.png"
+          src={GIDEON_AVATAR}
           alt="Gideon"
           style={{
             width: '24px',

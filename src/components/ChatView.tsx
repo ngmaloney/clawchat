@@ -5,6 +5,7 @@ import { ToolApprovalCard } from './ToolApprovalCard'
 import type { DisplayMessage } from '../hooks/useChat'
 import type { ConnectionStatus } from '../types/protocol'
 import type { ToolApprovalRequest } from './ToolApprovalCard'
+import { GIDEON_AVATAR } from '../constants'
 
 interface ChatViewProps {
   messages: DisplayMessage[]
@@ -154,7 +155,7 @@ export function ChatView({
             color: '#555',
             gap: '0.5rem',
           }}>
-            <img src="/MyGideon.png" alt="Gideon" style={{ width: '64px', height: '64px', borderRadius: '50%' }} />
+            <img src={GIDEON_AVATAR} alt="Gideon" style={{ width: '64px', height: '64px', borderRadius: '50%' }} />
             <span style={{ fontSize: '0.9rem' }}>Send a message to get started!</span>
           </div>
         )}
@@ -182,7 +183,7 @@ export function ChatView({
             gap: '0.5rem',
           }}>
             <img
-              src="/MyGideon.png"
+              src={GIDEON_AVATAR}
               alt={assistantName}
               style={{
                 width: '24px',
