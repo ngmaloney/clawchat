@@ -7,6 +7,7 @@ export type { ConnectionStatus }
 interface UseGatewayOptions {
   url: string
   token: string
+  deviceToken?: string
   autoConnect?: boolean
 }
 
@@ -17,7 +18,7 @@ export interface GatewayHandle {
   disconnect: () => void
 }
 
-export function useGateway({ url, token, autoConnect = false }: UseGatewayOptions): GatewayHandle {
+export function useGateway({ url, token, deviceToken, autoConnect = false }: UseGatewayOptions): GatewayHandle {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const clientRef = useRef<GatewayClient | null>(null)
 
@@ -28,7 +29,11 @@ export function useGateway({ url, token, autoConnect = false }: UseGatewayOption
     const client = new GatewayClient({
       url,
       token,
+      deviceToken,
       onStatusChange: (s) => setStatus(s),
+      onDeviceToken: (dt) => {
+        window.api.store.set('deviceToken', dt)
+      },
     })
 
     clientRef.current = client
@@ -41,7 +46,7 @@ export function useGateway({ url, token, autoConnect = false }: UseGatewayOption
       client.disconnect()
       clientRef.current = null
     }
-  }, [url, token, autoConnect])
+  }, [url, token, deviceToken, autoConnect])
 
   const connect = useCallback(() => {
     clientRef.current?.connect()

@@ -4,7 +4,7 @@ import { Dashboard } from './components/Dashboard'
 import { useGateway } from './hooks/useGateway'
 
 function App() {
-  const [credentials, setCredentials] = useState<{ url: string; token: string } | null>(null)
+  const [credentials, setCredentials] = useState<{ url: string; token: string; deviceToken?: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Load saved credentials on mount
@@ -13,8 +13,9 @@ function App() {
       try {
         const url = await window.api.store.get('gatewayUrl') as string
         const token = await window.api.store.get('token') as string
+        const deviceToken = await window.api.store.get('deviceToken') as string | undefined
         if (url && token) {
-          setCredentials({ url, token })
+          setCredentials({ url, token, deviceToken })
         }
       } catch (e) {
         console.error('Failed to load credentials:', e)
@@ -28,6 +29,7 @@ function App() {
   const { status, client, disconnect } = useGateway({
     url: credentials?.url || '',
     token: credentials?.token || '',
+    deviceToken: credentials?.deviceToken,
     autoConnect: !!credentials,
   })
 
