@@ -132,6 +132,19 @@ function createWindow() {
     },
   })
 
+  // Rewrite the Origin header on WebSocket connections to the gateway.
+  // In production builds the page loads from file:// which sends a null
+  // origin — the gateway rejects that for Control UI clients. Setting
+  // a localhost origin matches what the built-in web UI sends.
+  win.webContents.session.webRequest.onBeforeSendHeaders(
+    { urls: ['ws://*/*', 'wss://*/*'] },
+    (details, callback) => {
+      const url = new URL(details.url)
+      details.requestHeaders['Origin'] = `http://${url.host}`
+      callback({ requestHeaders: details.requestHeaders })
+    },
+  )
+
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
