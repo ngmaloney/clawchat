@@ -115,6 +115,8 @@ button:focus-visible {
   overflow-wrap: break-word;
   word-break: break-word;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .msg-content pre {

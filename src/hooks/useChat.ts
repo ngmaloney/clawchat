@@ -82,78 +82,61 @@ function filterLargeAttachments(attachments?: ChatAttachment[]): ChatAttachment[
  * and optional timestamp prefix, regardless of what comes before it.
  */
 function stripGatewayPreamble(text: string): string {
-  // Find "Conversation info (untrusted metadata):" anywhere from the start
+  // Strategy: find the preamble marker, then find where the actual message starts
+  // by looking for the last closing brace of the JSON block + optional timestamp
   const marker = 'Conversation info (untrusted metadata):'
   const idx = text.indexOf(marker)
   if (idx === -1) return text
-
-  // Only strip if the marker is near the start (within first 500 chars — it's a preamble)
   if (idx > 500) return text
 
-  // Find the closing brace of the JSON block after the marker
-  const afterMarker = text.indexOf('{', idx + marker.length)
-  if (afterMarker === -1) return text
+  // Use a greedy approach: find the LAST } that's part of the JSON block
+  // The JSON block starts at the first { after the marker
+  const jsonStart = text.indexOf('{', idx + marker.length)
+  if (jsonStart === -1) return text
 
-  // Find matching closing brace — track strings to avoid counting braces inside JSON string values
-  let braceDepth = 0
+  // Try to parse JSON to find the exact end
   let jsonEnd = -1
-  let inString = false
-  let escaped = false
-  for (let i = afterMarker; i < text.length; i++) {
-    const ch = text[i]
-    if (escaped) { escaped = false; continue }
-    if (ch === '\\' && inString) { escaped = true; continue }
-    if (ch === '"') { inString = !inString; continue }
-    if (inString) continue
-    if (ch === '{') braceDepth++
-    else if (ch === '}') {
-      braceDepth--
-      if (braceDepth === 0) { jsonEnd = i; break }
-    }
-  }
-
-  // If we couldn't find matching braces, bail — return original
-  if (jsonEnd === -1) return text
-
-  // Skip past the JSON block and any trailing whitespace/newlines
-  let start = jsonEnd + 1
-  while (start < text.length && /[\s]/.test(text[start])) {
-    start++
-  }
-
-  // Skip optional timestamp like [Fri 2026-02-20 01:12 CST] or [2026-02-20T...]
-  if (start < text.length && text[start] === '[') {
-    const closeBracket = text.indexOf(']', start)
-    if (closeBracket !== -1 && closeBracket - start < 60) {
-      const bracket = text.slice(start, closeBracket + 1)
-      if (/\d{4}[-/]\d{2}[-/]\d{2}/.test(bracket)) {
-        start = closeBracket + 1
-        // Skip trailing whitespace after timestamp
-        while (start < text.length && /[\s]/.test(text[start])) start++
+  for (let end = jsonStart + 1; end <= text.length; end++) {
+    if (text[end] === '}') {
+      try {
+        JSON.parse(text.slice(jsonStart, end + 1))
+        jsonEnd = end
+        break
+      } catch {
+        // Not valid JSON yet, keep going
       }
     }
   }
 
-  // Safety: if stripping would leave nothing, return original
-  const result = text.slice(start).trim()
-  if (!result) return text
+  // If JSON.parse didn't work, fall back to finding last } before actual content
+  if (jsonEnd === -1) {
+    // Find last } in the first 2000 chars after the marker
+    const searchEnd = Math.min(text.length, idx + 2000)
+    for (let i = searchEnd - 1; i >= jsonStart; i--) {
+      if (text[i] === '}') { jsonEnd = i; break }
+    }
+  }
 
-  return result
+  if (jsonEnd === -1) return text
+
+  // Everything after the JSON block
+  let rest = text.slice(jsonEnd + 1).trim()
+
+  // Strip optional timestamp prefix from what remains
+  rest = stripTimestampPrefix(rest)
+
+  return rest || text
 }
 
 /**
- * Strip standalone timestamp prefix like [Fri 2026-02-20 01:12 CST]
- * that appears at the start of messages without the full preamble.
+ * Strip timestamp prefix like [Fri 2026-02-20 01:12 CST] from the start of text.
+ * Handles both standalone timestamps and timestamps after preamble.
  */
 function stripTimestampPrefix(text: string): string {
-  const trimmed = text.trimStart()
-  if (!trimmed.startsWith('[')) return text
-  const closeBracket = trimmed.indexOf(']')
-  if (closeBracket === -1 || closeBracket > 60) return text
-  // Verify it looks like a timestamp (contains a date-like pattern)
-  const bracket = trimmed.slice(0, closeBracket + 1)
-  if (!/\d{4}[-/]\d{2}[-/]\d{2}/.test(bracket)) return text
-  const result = trimmed.slice(closeBracket + 1).trim()
+  // Use regex for robustness — match [anything with a date pattern]
+  const match = text.match(/^\s*\[[^\]]{0,55}\d{4}[-/]\d{2}[-/]\d{2}[^\]]*\]\s*/)
+  if (!match) return text
+  const result = text.slice(match[0].length)
   return result || text
 }
 

@@ -178,7 +178,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
 
         {/* Message text with markdown */}
         {processedText && (
-          <div style={{ overflow: 'hidden' }} className="msg-content">
+          <div style={{ overflow: 'hidden', overflowX: 'hidden', maxWidth: '100%' }} className="msg-content">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
