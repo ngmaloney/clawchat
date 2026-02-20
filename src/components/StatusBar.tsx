@@ -71,8 +71,10 @@ export function StatusBar({
       fontSize: '0.75rem',
       color: '#888',
       flexShrink: 0,
+      position: 'relative',
+      overflow: 'visible',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, overflow: 'visible' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
           <span style={{
             width: '8px',

@@ -22,10 +22,6 @@ export function ModelSwitcher({ currentModel, models, onSelect }: ModelSwitcherP
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  if (models.length === 0) {
-    return <span style={{ color: '#aaa', flexShrink: 0 }}>{currentModel ?? 'unknown'}</span>
-  }
-
   return (
     <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
       <button
@@ -63,6 +59,11 @@ export function ModelSwitcher({ currentModel, models, onSelect }: ModelSwitcherP
           zIndex: 50,
           boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
         }}>
+          {models.length === 0 && (
+            <div style={{ padding: '0.5rem 0.75rem', color: '#555', fontSize: '0.8rem' }}>
+              No models available
+            </div>
+          )}
           {models.map((m) => {
             const isActive = m.id === currentModel
             return (
