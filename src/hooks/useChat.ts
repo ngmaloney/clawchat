@@ -94,12 +94,19 @@ function stripGatewayPreamble(text: string): string {
   const afterMarker = text.indexOf('{', idx + marker.length)
   if (afterMarker === -1) return text
 
-  // Find matching closing brace
+  // Find matching closing brace — track strings to avoid counting braces inside JSON string values
   let braceDepth = 0
   let jsonEnd = -1
+  let inString = false
+  let escaped = false
   for (let i = afterMarker; i < text.length; i++) {
-    if (text[i] === '{') braceDepth++
-    else if (text[i] === '}') {
+    const ch = text[i]
+    if (escaped) { escaped = false; continue }
+    if (ch === '\\' && inString) { escaped = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === '{') braceDepth++
+    else if (ch === '}') {
       braceDepth--
       if (braceDepth === 0) { jsonEnd = i; break }
     }
@@ -108,19 +115,22 @@ function stripGatewayPreamble(text: string): string {
   // If we couldn't find matching braces, bail — return original
   if (jsonEnd === -1) return text
 
-  // Skip past the JSON block and any trailing whitespace
+  // Skip past the JSON block and any trailing whitespace/newlines
   let start = jsonEnd + 1
-  while (start < text.length && (text[start] === '\n' || text[start] === '\r' || text[start] === ' ')) {
+  while (start < text.length && /[\s]/.test(text[start])) {
     start++
   }
 
-  // Skip optional timestamp like [Fri 2026-02-20 01:12 CST]
+  // Skip optional timestamp like [Fri 2026-02-20 01:12 CST] or [2026-02-20T...]
   if (start < text.length && text[start] === '[') {
     const closeBracket = text.indexOf(']', start)
     if (closeBracket !== -1 && closeBracket - start < 60) {
-      start = closeBracket + 1
-      // Skip trailing space after timestamp
-      while (start < text.length && text[start] === ' ') start++
+      const bracket = text.slice(start, closeBracket + 1)
+      if (/\d{4}[-/]\d{2}[-/]\d{2}/.test(bracket)) {
+        start = closeBracket + 1
+        // Skip trailing whitespace after timestamp
+        while (start < text.length && /[\s]/.test(text[start])) start++
+      }
     }
   }
 
@@ -136,13 +146,14 @@ function stripGatewayPreamble(text: string): string {
  * that appears at the start of messages without the full preamble.
  */
 function stripTimestampPrefix(text: string): string {
-  if (!text.startsWith('[')) return text
-  const closeBracket = text.indexOf(']')
+  const trimmed = text.trimStart()
+  if (!trimmed.startsWith('[')) return text
+  const closeBracket = trimmed.indexOf(']')
   if (closeBracket === -1 || closeBracket > 60) return text
   // Verify it looks like a timestamp (contains a date-like pattern)
-  const bracket = text.slice(0, closeBracket + 1)
-  if (!/\d{4}-\d{2}-\d{2}/.test(bracket)) return text
-  const result = text.slice(closeBracket + 1).trim()
+  const bracket = trimmed.slice(0, closeBracket + 1)
+  if (!/\d{4}[-/]\d{2}[-/]\d{2}/.test(bracket)) return text
+  const result = trimmed.slice(closeBracket + 1).trim()
   return result || text
 }
 
