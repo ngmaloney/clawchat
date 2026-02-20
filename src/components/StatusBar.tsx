@@ -3,6 +3,7 @@ import type { ConnectionStatus } from '../types/protocol'
 interface StatusBarProps {
   status: ConnectionStatus
   activeSession: string
+  model?: string
   onDisconnect: () => void
 }
 
@@ -22,7 +23,7 @@ const statusLabels: Record<ConnectionStatus, string> = {
   error: 'Error',
 }
 
-export function StatusBar({ status, activeSession, onDisconnect }: StatusBarProps) {
+export function StatusBar({ status, activeSession, model, onDisconnect }: StatusBarProps) {
   return (
     <div style={{
       display: 'flex',
@@ -50,6 +51,12 @@ export function StatusBar({ status, activeSession, onDisconnect }: StatusBarProp
         </div>
         <span style={{ color: '#555' }}>|</span>
         <span style={{ color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeSession}</span>
+        {model && (
+          <>
+            <span style={{ color: '#555' }}>|</span>
+            <span style={{ color: '#aaa', flexShrink: 0 }}>{model}</span>
+          </>
+        )}
       </div>
 
       <button

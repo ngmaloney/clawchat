@@ -66,6 +66,7 @@ export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
       <StatusBar
         status={status}
         activeSession={activeSessionKey}
+        model={sessions.find(s => s.key === activeSessionKey)?.model}
         onDisconnect={onDisconnect}
       />
     </div>
