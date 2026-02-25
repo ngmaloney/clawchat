@@ -336,11 +336,11 @@ export class GatewayClient {
       auth: { token: this.token, ...(this.deviceToken ? { deviceToken: this.deviceToken } : {}) },
       ...(device ? { device } : {}),
       client: {
-        // Protocol requires allowlisted ID/mode
-        id: 'cli',
+        // Must match gateway's allowlisted Control UI client values
+        id: 'openclaw-control-ui',
         version: 'dev',
         platform: 'electron',
-        mode: 'operator',
+        mode: 'webchat',
       },
       minProtocol: 3,
       maxProtocol: 3,
