@@ -1,4 +1,3 @@
-import { Sidebar } from './Sidebar'
 import { ChatView } from './ChatView'
 import { StatusBar } from './StatusBar'
 import type { ConnectionStatus } from '../types/protocol'
@@ -9,15 +8,15 @@ import { useChat } from '../hooks/useChat'
 interface DashboardProps {
   status: ConnectionStatus
   client: GatewayClient | null
+  gatewayUrl: string
   onDisconnect: () => void
 }
 
-export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
+export function Dashboard({ status, client, gatewayUrl, onDisconnect }: DashboardProps) {
   const {
     sessions,
     activeSessionKey,
     setActiveSessionKey,
-    loading: sessionsLoading,
   } = useSessions(client, status)
 
   const {
@@ -39,19 +38,13 @@ export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
       color: '#e0e0e0',
       fontFamily: 'system-ui, -apple-system, sans-serif',
     }}>
-      {/* Main area: sidebar + chat */}
+      {/* Main area: chat only */}
       <div style={{
         flex: 1,
         display: 'flex',
         overflow: 'hidden',
         minWidth: 0,
       }}>
-        <Sidebar
-          sessions={sessions}
-          activeSessionKey={activeSessionKey}
-          onSelectSession={setActiveSessionKey}
-          loading={sessionsLoading}
-        />
         <ChatView
           messages={messages}
           isStreaming={isStreaming}
@@ -66,6 +59,9 @@ export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
       <StatusBar
         status={status}
         activeSession={activeSessionKey}
+        sessions={sessions}
+        onSelectSession={setActiveSessionKey}
+        gatewayUrl={gatewayUrl}
         onDisconnect={onDisconnect}
       />
     </div>
