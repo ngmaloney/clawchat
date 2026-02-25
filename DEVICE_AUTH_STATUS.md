@@ -24,14 +24,22 @@ PR #3 (fix/protocol-v3-scopes) added device crypto but the signature format is i
 - Gateway returns: `device signature invalid`
 - Test confirms: Handshake succeeds WITHOUT device auth, but NO scopes granted
 
-## What I Tested
+## What I Fixed (2026-02-24 21:25 EST)
+
+Found the issue by examining the actual Control UI source code:
 
 1. ✅ Correct scopes requested: `['operator.admin', 'operator.approvals', 'operator.pairing']`
 2. ✅ Correct client identity: `id: 'cli', mode: 'cli'`
 3. ✅ Signature payload format matches Control UI: `v2|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce`
-4. ❌ Signature still rejected by gateway
-5. ✅ Handshake succeeds without device field
-6. ❌ But no scopes granted without device auth
+4. ✅ **FIXED:** Use `Date.now()` for `signedAtMs` (not challenge timestamp)
+5. ✅ **FIXED:** Use **base64url** encoding for signatures and public keys (not standard base64)
+   - Control UI's `zi()` function: `btoa(t).replaceAll("+","-").replaceAll("/","_").replace(/=+$/g,"")`
+   - Signature and public key MUST be base64url encoded
+
+**Changes:**
+- Restored full payload signing (v2 format with all fields)
+- Fixed `signedAt` to use `Date.now()` at signature time
+- Changed `toBase64()` → `toBase64Url()` for both signature and public key export
 
 ## Options
 
