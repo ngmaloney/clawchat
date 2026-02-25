@@ -36,6 +36,8 @@ function sessionLabel(s: SessionInfo): string {
 }
 
 export function StatusBar({ status, activeSession, sessions, onSelectSession, onDisconnect }: StatusBarProps) {
+  const activeModel = sessions.find(s => s.key === activeSession)?.model
+
   return (
     <div style={{
       display: 'flex',
@@ -86,6 +88,14 @@ export function StatusBar({ status, activeSession, sessions, onSelectSession, on
             ))
           )}
         </select>
+        {activeModel && (
+          <>
+            <span style={{ color: '#555' }}>|</span>
+            <span style={{ color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {activeModel}
+            </span>
+          </>
+        )}
       </div>
 
       <button
