@@ -337,10 +337,10 @@ export class GatewayClient {
       ...(device ? { device } : {}),
       client: {
         // Must match gateway's allowlisted client values
-        id: 'cli',
+        id: 'gateway-client',
         version: 'dev',
         platform: 'electron',
-        mode: 'cli',
+        mode: 'ui',
       },
       minProtocol: 3,
       maxProtocol: 3,
