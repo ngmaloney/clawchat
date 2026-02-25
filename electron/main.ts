@@ -120,18 +120,31 @@ let win: BrowserWindow | null
 let tray: Tray | null = null
 let isQuitting = false
 
-function createTray() {
-  // Load the app icon and resize for the tray.
-  // Do NOT call setTemplateImage(true) on a colorful icon — macOS would
-  // render it invisible. We use the colored icon as-is (works fine).
-  const iconPath = path.join(process.env.VITE_PUBLIC!, 'icon.png')
-  const appIcon = nativeImage.createFromPath(iconPath)
-  const trayIcon = appIcon.isEmpty()
-    ? nativeImage.createEmpty()
-    : appIcon.resize({ width: 16, height: 16 })
+// Hardcoded 16x16 orange (#f97316) PNG — guaranteed visible fallback
+const TRAY_ICON_FALLBACK = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGP4WSxGEmIY1TCqYfhqAAAYwIIQghBcrQAAAABJRU5ErkJggg=='
 
+function createTray() {
+  console.log('[Tray] createTray() called')
+
+  // Try to load and resize the app icon; fall back to hardcoded inline icon
+  const iconPath = path.join(process.env.VITE_PUBLIC!, 'icon.png')
+  console.log('[Tray] Loading icon from:', iconPath)
+  const appIcon = nativeImage.createFromPath(iconPath)
+  console.log('[Tray] App icon empty?', appIcon.isEmpty(), '| size:', appIcon.getSize())
+
+  let trayIcon: ReturnType<typeof nativeImage.createFromPath>
+  if (!appIcon.isEmpty()) {
+    trayIcon = appIcon.resize({ width: 16, height: 16 })
+    console.log('[Tray] Resized icon size:', trayIcon.getSize(), '| empty?', trayIcon.isEmpty())
+  } else {
+    console.log('[Tray] Using hardcoded fallback icon')
+    trayIcon = nativeImage.createFromDataURL(TRAY_ICON_FALLBACK)
+  }
+
+  console.log('[Tray] Creating Tray instance...')
   tray = new Tray(trayIcon)
   tray.setToolTip('ClawChat')
+  console.log('[Tray] Tray created successfully')
 
   const buildContextMenu = () => Menu.buildFromTemplate([
     {
