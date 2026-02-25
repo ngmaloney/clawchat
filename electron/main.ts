@@ -124,14 +124,21 @@ function createTray() {
   // Use a template image on macOS (adapts to dark/light menu bar automatically)
   // Falls back to the app icon on Windows/Linux
   const iconPath = process.platform === 'darwin'
-    ? path.join(process.env.VITE_PUBLIC, 'tray-iconTemplate.png')
-    : path.join(process.env.VITE_PUBLIC, 'icon.png')
+    ? path.join(process.env.VITE_PUBLIC!, 'tray-iconTemplate.png')
+    : path.join(process.env.VITE_PUBLIC!, 'icon.png')
+
+  console.log('[Tray] VITE_PUBLIC:', process.env.VITE_PUBLIC)
+  console.log('[Tray] Icon path:', iconPath)
 
   let trayIcon = nativeImage.createFromPath(iconPath)
+  console.log('[Tray] Template icon empty?', trayIcon.isEmpty())
   
   // If tray-specific icon not found, fall back to app icon and resize
   if (trayIcon.isEmpty()) {
-    const fallback = nativeImage.createFromPath(path.join(process.env.VITE_PUBLIC, 'icon.png'))
+    const fallbackPath = path.join(process.env.VITE_PUBLIC!, 'icon.png')
+    console.log('[Tray] Falling back to:', fallbackPath)
+    const fallback = nativeImage.createFromPath(fallbackPath)
+    console.log('[Tray] Fallback icon empty?', fallback.isEmpty())
     trayIcon = fallback.resize({ width: 16, height: 16 })
     if (process.platform === 'darwin') {
       trayIcon.setTemplateImage(true)
@@ -252,7 +259,11 @@ app.whenReady().then(() => {
   app.setName('ClawChat')
   
   createWindow()
-  createTray()
+  try {
+    createTray()
+  } catch (err) {
+    console.error('[Tray] Failed to create tray:', err)
+  }
   
   // Enable context menu for text inputs, spell check, etc.
   contextMenu({
