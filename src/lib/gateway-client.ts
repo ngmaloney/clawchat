@@ -23,6 +23,7 @@ import {
   getDeviceId,
   exportPublicKey,
   signChallenge,
+  type SignaturePayload,
 } from './device-crypto'
 
 // ── Types ────────────────────────────────────────────────────
@@ -314,16 +315,26 @@ export class GatewayClient {
     if (this.challengeNonce) {
       try {
         const keyPair = await getOrCreateKeyPair()
-        const [id, publicKey, signature] = await Promise.all([
-          getDeviceId(keyPair.publicKey),
-          exportPublicKey(keyPair.publicKey),
-          signChallenge(keyPair.privateKey, this.challengeNonce),
-        ])
+        const deviceId = await getDeviceId(keyPair.publicKey)
+        const publicKey = await exportPublicKey(keyPair.publicKey)
+        const signedAt = this.challengeTs ?? Date.now()
+        
+        const signature = await signChallenge(keyPair.privateKey, {
+          deviceId,
+          clientId: 'cli',
+          clientMode: 'cli',
+          role: 'operator',
+          scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
+          signedAtMs: signedAt,
+          token: this.token || null,
+          nonce: this.challengeNonce,
+        })
+        
         device = {
-          id,
+          id: deviceId,
           publicKey,
           signature,
-          signedAt: this.challengeTs ?? Date.now(),
+          signedAt,
           nonce: this.challengeNonce,
         }
       } catch (err) {

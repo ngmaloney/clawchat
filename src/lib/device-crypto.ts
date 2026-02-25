@@ -75,12 +75,30 @@ export async function exportPublicKey(publicKey: CryptoKey): Promise<string> {
   return toBase64(spki)
 }
 
+export interface SignaturePayload {
+  deviceId: string
+  clientId: string
+  clientMode: string
+  role: string
+  scopes: string[]
+  signedAtMs: number
+  token: string | null
+  nonce: string
+}
+
+function buildSignaturePayload(payload: SignaturePayload): string {
+  const scopesStr = payload.scopes.join(',')
+  const tokenStr = payload.token ?? ''
+  return ['v2', payload.deviceId, payload.clientId, payload.clientMode, payload.role, scopesStr, String(payload.signedAtMs), tokenStr, payload.nonce].join('|')
+}
+
 /**
- * Sign a challenge nonce with ECDSA-SHA256, return base64 signature.
+ * Sign a challenge with device auth payload per OpenClaw protocol.
  */
-export async function signChallenge(privateKey: CryptoKey, nonce: string): Promise<string> {
+export async function signChallenge(privateKey: CryptoKey, payload: SignaturePayload): Promise<string> {
   const encoder = new TextEncoder()
-  const data = encoder.encode(nonce)
+  const payloadStr = buildSignaturePayload(payload)
+  const data = encoder.encode(payloadStr)
   const signature = await crypto.subtle.sign(SIGN_ALGORITHM, privateKey, data)
   return toBase64(signature)
 }
