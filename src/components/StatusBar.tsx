@@ -35,8 +35,21 @@ function sessionLabel(s: SessionInfo): string {
   return s.key
 }
 
+function formatTokens(n: number): string {
+  if (n >= 1000) return `~${Math.round(n / 1000)}k tokens`
+  return `${n} tokens`
+}
+
+function tokenColor(n: number): string {
+  if (n >= 150000) return '#ef4444' // red — critical
+  if (n >= 80000) return '#f59e0b'  // amber — getting long
+  return '#555'                      // default dim
+}
+
 export function StatusBar({ status, activeSession, sessions, onSelectSession, onDisconnect }: StatusBarProps) {
-  const activeModel = sessions.find(s => s.key === activeSession)?.model
+  const activeSessionInfo = sessions.find(s => s.key === activeSession)
+  const activeModel = activeSessionInfo?.model
+  const totalTokens = activeSessionInfo?.totalTokens
 
   return (
     <div style={{
@@ -93,6 +106,14 @@ export function StatusBar({ status, activeSession, sessions, onSelectSession, on
             <span style={{ color: '#555' }}>|</span>
             <span style={{ color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {activeModel}
+            </span>
+          </>
+        )}
+        {totalTokens !== undefined && totalTokens > 0 && (
+          <>
+            <span style={{ color: '#555' }}>|</span>
+            <span style={{ color: tokenColor(totalTokens), whiteSpace: 'nowrap' }}>
+              {formatTokens(totalTokens)}
             </span>
           </>
         )}
