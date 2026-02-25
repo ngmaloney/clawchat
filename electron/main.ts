@@ -327,6 +327,9 @@ app.whenReady().then(() => {
       focused.webContents.toggleDevTools()
     }
   })
+}).catch((err) => {
+  process.stderr.write(`[ClawChat] Startup error: ${err}\n`)
+  app.exit(1)
 })
 
 app.on('will-quit', () => {
