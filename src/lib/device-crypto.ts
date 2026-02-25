@@ -23,6 +23,13 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(binary)
 }
 
+function toBase64Url(buf: ArrayBuffer): string {
+  return toBase64(buf)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '')
+}
+
 function toHex(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf)
   let hex = ''
@@ -98,7 +105,10 @@ function buildSignaturePayload(payload: SignaturePayload): string {
 export async function signChallenge(privateKey: CryptoKey, payload: SignaturePayload): Promise<string> {
   const encoder = new TextEncoder()
   const payloadStr = buildSignaturePayload(payload)
+  console.log('[device-crypto] Signing payload:', payloadStr)
   const data = encoder.encode(payloadStr)
   const signature = await crypto.subtle.sign(SIGN_ALGORITHM, privateKey, data)
-  return toBase64(signature)
+  const sig = toBase64(signature)
+  console.log('[device-crypto] Signature (base64):', sig.substring(0, 20) + '...')
+  return sig
 }
