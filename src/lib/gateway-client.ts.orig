@@ -23,8 +23,7 @@ import {
   getDeviceId,
   exportPublicKey,
   signChallenge,
-  type SignaturePayload,
-} from './device-crypto-ed25519'
+} from './device-crypto'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -71,7 +70,6 @@ export class GatewayClient {
 
   private challengeNonce: string | null = null
   private challengeTs: number | null = null
-  private grantedScopes: string[] = []
   private deviceToken: string | undefined
 
   private readonly url: string
@@ -312,61 +310,41 @@ export class GatewayClient {
     // (i.e. the device was previously paired). Sending an unsolicited device
     // field to a token-auth gateway causes "device signature invalid".
     let device: DeviceIdentity | undefined
-    if (this.challengeNonce) {
+    if (this.challengeNonce && this.deviceToken) {
       try {
-        const identity = await getOrCreateKeyPair()
-        const deviceId = await getDeviceId(identity)
-        const publicKey = await exportPublicKey(identity)
-        const signedAt = Date.now()  // Must be current time, not challenge time!
-        
-        const signature = await signChallenge(identity, {
-          deviceId,
-          clientId: 'cli',
-          clientMode: 'cli',
-          role: 'operator',
-          scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
-          signedAtMs: signedAt,
-          token: this.token || null,
-          nonce: this.challengeNonce,
-        })
-        
+        const keyPair = await getOrCreateKeyPair()
+        const [id, publicKey, signature] = await Promise.all([
+          getDeviceId(keyPair.publicKey),
+          exportPublicKey(keyPair.publicKey),
+          signChallenge(keyPair.privateKey, this.challengeNonce),
+        ])
         device = {
-          id: deviceId,
+          id,
           publicKey,
           signature,
-          signedAt,
+          signedAt: this.challengeTs ?? Date.now(),
           nonce: this.challengeNonce,
         }
       } catch (err) {
-        console.error('[GatewayClient] Failed to build device identity:', err)
+        console.warn('[GatewayClient] Failed to build device identity:', err)
       }
     }
 
     const params: ConnectParams = {
       role: 'operator',
-      scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
+      scopes: ['operator.read', 'operator.write'],
       auth: { token: this.token, ...(this.deviceToken ? { deviceToken: this.deviceToken } : {}) },
       ...(device ? { device } : {}),
       client: {
-        // Use same identity as official CLI (we know this works)
-        id: 'cli',
+        // Must match gateway's allowlisted client values
+        id: 'gateway-client',
         version: 'dev',
         platform: 'electron',
-        mode: 'cli',
+        mode: 'ui',
       },
       minProtocol: 3,
       maxProtocol: 3,
     }
-    
-    console.log('[GatewayClient] Connect params (full device details):', JSON.stringify({
-      ...params,
-      auth: params.auth?.token ? { token: '***', deviceToken: params.auth.deviceToken ? '***' : undefined } : params.auth,
-      device: device ? {
-        ...device,
-        signature: device.signature.substring(0, 20) + '... (len=' + device.signature.length + ')',
-        publicKey: device.publicKey.substring(0, 20) + '... (len=' + device.publicKey.length + ')',
-      } : undefined
-    }, null, 2))
 
     try {
       // Temporarily allow calls during handshaking
@@ -388,7 +366,6 @@ export class GatewayClient {
 
       if ((payload as Record<string, unknown>).type === 'hello-ok') {
         console.log('[GatewayClient] Handshake complete — connected!')
-        console.log('[GatewayClient] Full hello-ok payload:', JSON.stringify(payload, null, 2))
 
         // Extract maxPayload from policy if available
         const snapshot = (payload as any).snapshot
@@ -399,19 +376,9 @@ export class GatewayClient {
 
         // Extract and persist deviceToken from hello-ok
         const authPayload = (payload as any).auth
-        console.log('[GatewayClient] Auth payload:', authPayload)
-        
         if (authPayload?.deviceToken) {
           this.deviceToken = authPayload.deviceToken
           this.onDeviceToken?.(authPayload.deviceToken)
-        }
-
-        // Extract granted scopes
-        if (authPayload?.scopes) {
-          this.grantedScopes = authPayload.scopes
-          console.log('[GatewayClient] Granted scopes:', this.grantedScopes)
-        } else {
-          console.warn('[GatewayClient] NO SCOPES in auth payload!')
         }
 
         this.retryCount = 0

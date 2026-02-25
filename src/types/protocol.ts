@@ -32,10 +32,19 @@ export interface ConnectChallengePayload {
   ts: number
 }
 
+export interface DeviceIdentity {
+  id: string
+  publicKey: string
+  signature: string
+  signedAt: number
+  nonce: string
+}
+
 export interface ConnectParams {
   role: 'operator'
   scopes: string[]
-  auth: { token: string }
+  auth: { token: string; deviceToken?: string }
+  device?: DeviceIdentity
   client: {
     id: string
     version: string
@@ -50,6 +59,7 @@ export interface HelloOkPayload {
   type: 'hello-ok'
   protocol: number
   sessionId?: string
+  auth?: { deviceToken?: string }
   [key: string]: unknown
 }
 
