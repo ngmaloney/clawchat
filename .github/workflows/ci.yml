@@ -27,6 +27,6 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Build
-        run: npm run build
+        run: npm run build:ci
         env:
           CI: true
