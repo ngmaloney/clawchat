@@ -202,12 +202,19 @@ function createWindow() {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
   })
 
-  // Hide to tray on close instead of quitting
+  // Hide to tray on minimize (yellow button)
+  win.on('minimize', () => {
+    win?.hide()
+    if (process.platform === 'darwin') {
+      app.dock?.hide()
+    }
+  })
+
+  // Hide to tray on close (red X) instead of quitting
   win.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault()
       win?.hide()
-      // On macOS, also hide the dock icon when minimized to tray
       if (process.platform === 'darwin') {
         app.dock?.hide()
       }
