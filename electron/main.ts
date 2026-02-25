@@ -121,29 +121,14 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  // Use a template image on macOS (adapts to dark/light menu bar automatically)
-  // Falls back to the app icon on Windows/Linux
-  const iconPath = process.platform === 'darwin'
-    ? path.join(process.env.VITE_PUBLIC!, 'tray-iconTemplate.png')
-    : path.join(process.env.VITE_PUBLIC!, 'icon.png')
-
-  console.log('[Tray] VITE_PUBLIC:', process.env.VITE_PUBLIC)
-  console.log('[Tray] Icon path:', iconPath)
-
-  let trayIcon = nativeImage.createFromPath(iconPath)
-  console.log('[Tray] Template icon empty?', trayIcon.isEmpty())
-  
-  // If tray-specific icon not found, fall back to app icon and resize
-  if (trayIcon.isEmpty()) {
-    const fallbackPath = path.join(process.env.VITE_PUBLIC!, 'icon.png')
-    console.log('[Tray] Falling back to:', fallbackPath)
-    const fallback = nativeImage.createFromPath(fallbackPath)
-    console.log('[Tray] Fallback icon empty?', fallback.isEmpty())
-    trayIcon = fallback.resize({ width: 16, height: 16 })
-    if (process.platform === 'darwin') {
-      trayIcon.setTemplateImage(true)
-    }
-  }
+  // Load the app icon and resize for the tray.
+  // Do NOT call setTemplateImage(true) on a colorful icon — macOS would
+  // render it invisible. We use the colored icon as-is (works fine).
+  const iconPath = path.join(process.env.VITE_PUBLIC!, 'icon.png')
+  const appIcon = nativeImage.createFromPath(iconPath)
+  const trayIcon = appIcon.isEmpty()
+    ? nativeImage.createEmpty()
+    : appIcon.resize({ width: 16, height: 16 })
 
   tray = new Tray(trayIcon)
   tray.setToolTip('ClawChat')
@@ -165,8 +150,12 @@ function createTray() {
 
   tray.setContextMenu(buildContextMenu())
 
-  // Rebuild context menu on click so Show/Hide label is always current
-  tray.on('click', () => toggleWindow())
+  tray.on('click', () => {
+    // Rebuild menu so Show/Hide label reflects current state
+    tray?.setContextMenu(buildContextMenu())
+    toggleWindow()
+  })
+
   tray.on('right-click', () => {
     tray?.setContextMenu(buildContextMenu())
     tray?.popUpContextMenu()
@@ -175,7 +164,8 @@ function createTray() {
 
 function toggleWindow() {
   if (!win) return
-  if (win.isVisible() && win.isFocused()) {
+  // Toggle purely on visibility — don't factor in focus state
+  if (win.isVisible()) {
     win.hide()
   } else {
     win.show()
@@ -202,29 +192,11 @@ function createWindow() {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
   })
 
-  // Hide to tray on minimize (yellow button)
-  win.on('minimize', () => {
-    win?.hide()
-    if (process.platform === 'darwin') {
-      app.dock?.hide()
-    }
-  })
-
-  // Hide to tray on close (red X) instead of quitting
+  // Hide to tray on close (red X) — yellow minimize works normally
   win.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault()
       win?.hide()
-      if (process.platform === 'darwin') {
-        app.dock?.hide()
-      }
-    }
-  })
-
-  // Show dock icon again when window is shown
-  win.on('show', () => {
-    if (process.platform === 'darwin') {
-      app.dock?.show()
     }
   })
 
@@ -249,9 +221,11 @@ app.on('window-all-closed', () => {
 })
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (BrowserWindow.getAllWindows().length === 0) {
+  // Dock icon clicked — show the window if it exists but is hidden
+  if (win && !win.isVisible()) {
+    win.show()
+    win.focus()
+  } else if (BrowserWindow.getAllWindows().length === 0) {
     createWindow()
   }
 })
