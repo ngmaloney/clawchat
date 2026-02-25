@@ -317,7 +317,7 @@ export class GatewayClient {
         const keyPair = await getOrCreateKeyPair()
         const deviceId = await getDeviceId(keyPair.publicKey)
         const publicKey = await exportPublicKey(keyPair.publicKey)
-        const signedAt = this.challengeTs ?? Date.now()
+        const signedAt = Date.now()  // Must be current time, not challenge time!
         
         const signature = await signChallenge(keyPair.privateKey, {
           deviceId,

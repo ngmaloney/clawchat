@@ -13,7 +13,8 @@ function toBase64(buf) {
 }
 
 function toBase64Url(buf) {
-  return Buffer.from(buf).toString('base64url'); // URL-safe base64
+  // Matches Control UI's zi() function
+  return toBase64(buf).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
 function toHex(buf) {
@@ -47,7 +48,7 @@ async function signChallenge(privateKey, payload) {
   console.log('Signing payload:', payloadStr);
   const data = encoder.encode(payloadStr);
   const signature = await subtle.sign(SIGN_ALGORITHM, privateKey, data);
-  return toBase64Url(signature);
+  return toBase64Url(signature);  // Control UI uses base64url
 }
 
 // Import WebSocket
@@ -90,7 +91,8 @@ ws.on('message', async (data) => {
     
     console.log('🔢 Nonce:', challengeNonce);
     
-    const signedAt = challengeTs;
+    // Use Date.now() for signedAt, NOT challengeTs!
+    const signedAt = Date.now();
     const scopes = ['operator.admin', 'operator.approvals', 'operator.pairing'];
     
     console.log('\n🔏 Generating signature...');
@@ -115,7 +117,13 @@ ws.on('message', async (data) => {
         role: 'operator',
         scopes,
         auth: { token },
-        // NO DEVICE AUTH - testing without it
+        device: {
+          id: deviceId,
+          publicKey,
+          signature,
+          signedAt,  // Current time, not challenge time!
+          nonce: challengeNonce,
+        },
         client: {
           id: 'cli',
           version: 'test',

@@ -23,10 +23,14 @@ function toBase64(buf: ArrayBuffer): string {
   return btoa(binary)
 }
 
+/**
+ * Convert to base64url (URL-safe base64 without padding)
+ * Matches Control UI's zi() function
+ */
 function toBase64Url(buf: ArrayBuffer): string {
   return toBase64(buf)
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
     .replace(/=+$/, '')
 }
 
@@ -79,7 +83,7 @@ export async function getDeviceId(publicKey: CryptoKey): Promise<string> {
  */
 export async function exportPublicKey(publicKey: CryptoKey): Promise<string> {
   const spki = await crypto.subtle.exportKey('spki', publicKey)
-  return toBase64(spki)
+  return toBase64Url(spki)  // Control UI uses base64url
 }
 
 export interface SignaturePayload {
@@ -101,14 +105,12 @@ function buildSignaturePayload(payload: SignaturePayload): string {
 
 /**
  * Sign a challenge with device auth payload per OpenClaw protocol.
+ * Format (from Control UI source): v2|deviceId|clientId|clientMode|role|scopes|signedAtMs|token|nonce
  */
 export async function signChallenge(privateKey: CryptoKey, payload: SignaturePayload): Promise<string> {
   const encoder = new TextEncoder()
   const payloadStr = buildSignaturePayload(payload)
-  console.log('[device-crypto] Signing payload:', payloadStr)
   const data = encoder.encode(payloadStr)
   const signature = await crypto.subtle.sign(SIGN_ALGORITHM, privateKey, data)
-  const sig = toBase64(signature)
-  console.log('[device-crypto] Signature (base64):', sig.substring(0, 20) + '...')
-  return sig
+  return toBase64Url(signature)  // Control UI uses base64url for signatures
 }
