@@ -367,6 +367,7 @@ export class GatewayClient {
 
       if ((payload as Record<string, unknown>).type === 'hello-ok') {
         console.log('[GatewayClient] Handshake complete — connected!')
+        console.log('[GatewayClient] Full hello-ok payload:', JSON.stringify(payload, null, 2))
 
         // Extract maxPayload from policy if available
         const snapshot = (payload as any).snapshot
@@ -377,6 +378,8 @@ export class GatewayClient {
 
         // Extract and persist deviceToken from hello-ok
         const authPayload = (payload as any).auth
+        console.log('[GatewayClient] Auth payload:', authPayload)
+        
         if (authPayload?.deviceToken) {
           this.deviceToken = authPayload.deviceToken
           this.onDeviceToken?.(authPayload.deviceToken)
@@ -386,6 +389,8 @@ export class GatewayClient {
         if (authPayload?.scopes) {
           this.grantedScopes = authPayload.scopes
           console.log('[GatewayClient] Granted scopes:', this.grantedScopes)
+        } else {
+          console.warn('[GatewayClient] NO SCOPES in auth payload!')
         }
 
         this.retryCount = 0
