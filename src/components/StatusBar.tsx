@@ -87,7 +87,7 @@ export function StatusBar({ status, activeSession, sessions, onSelectSession, ga
               ? 'pulse 1.5s ease-in-out infinite' : undefined,
           }} />
           <span>{statusLabels[status]}</span>
-          <span style={{ color: '#555', marginLeft: '0.25rem' }}>({host})</span>
+          <span style={{ marginLeft: '0.25rem' }}>({host})</span>
         </div>
         <span style={{ color: '#555' }}>|</span>
         <select
