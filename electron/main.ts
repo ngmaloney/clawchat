@@ -109,19 +109,11 @@ let win: BrowserWindow | null
 let tray: Tray | null = null
 let isQuitting = false
 
-// Hardcoded 16x16 orange (#f97316) PNG — guaranteed visible fallback
-const TRAY_ICON_FALLBACK = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGP4WSxGEmIY1TCqYfhqAAAYwIIQghBcrQAAAABJRU5ErkJggg=='
+// 16x16 orange PNG used as tray icon until a proper asset is added
+const TRAY_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGP4WSxGEmIY1TCqYfhqAAAYwIIQghBcrQAAAABJRU5ErkJggg=='
 
 function createTray() {
-  // Try to load and resize the app icon; fall back to hardcoded inline icon
-  const iconPath = path.join(process.env.VITE_PUBLIC!, 'icon.png')
-  const appIcon = nativeImage.createFromPath(iconPath)
-
-  const trayIcon = appIcon.isEmpty()
-    ? nativeImage.createFromDataURL(TRAY_ICON_FALLBACK)
-    : appIcon.resize({ width: 16, height: 16 })
-
-  tray = new Tray(trayIcon)
+  tray = new Tray(nativeImage.createFromDataURL(TRAY_ICON))
   tray.setToolTip('ClawChat')
 
   const buildContextMenu = () => Menu.buildFromTemplate([
@@ -149,7 +141,6 @@ function createTray() {
 
   tray.on('right-click', () => {
     tray?.setContextMenu(buildContextMenu())
-    tray?.popUpContextMenu()
   })
 }
 
