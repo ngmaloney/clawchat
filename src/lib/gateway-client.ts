@@ -311,7 +311,7 @@ export class GatewayClient {
     // (i.e. the device was previously paired). Sending an unsolicited device
     // field to a token-auth gateway causes "device signature invalid".
     let device: DeviceIdentity | undefined
-    if (this.challengeNonce && this.deviceToken) {
+    if (this.challengeNonce) {
       try {
         const keyPair = await getOrCreateKeyPair()
         const [id, publicKey, signature] = await Promise.all([
@@ -327,9 +327,14 @@ export class GatewayClient {
           nonce: this.challengeNonce,
         }
       } catch (err) {
-        console.warn('[GatewayClient] Failed to build device identity:', err)
+        console.error('[GatewayClient] Failed to build device identity:', err)
       }
     }
+    
+    console.log('[GatewayClient] Device identity:', device ? 'PRESENT' : 'MISSING', {
+      hasNonce: !!this.challengeNonce,
+      hasTs: !!this.challengeTs
+    })
 
     const params: ConnectParams = {
       role: 'operator',
