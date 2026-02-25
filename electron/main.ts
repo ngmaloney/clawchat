@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray, nativeImage } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -117,6 +117,64 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+let tray: Tray | null = null
+let isQuitting = false
+
+function createTray() {
+  // Use a template image on macOS (adapts to dark/light menu bar automatically)
+  // Falls back to the app icon on Windows/Linux
+  const iconPath = process.platform === 'darwin'
+    ? path.join(process.env.VITE_PUBLIC, 'tray-iconTemplate.png')
+    : path.join(process.env.VITE_PUBLIC, 'icon.png')
+
+  let trayIcon = nativeImage.createFromPath(iconPath)
+  
+  // If tray-specific icon not found, fall back to app icon and resize
+  if (trayIcon.isEmpty()) {
+    const fallback = nativeImage.createFromPath(path.join(process.env.VITE_PUBLIC, 'icon.png'))
+    trayIcon = fallback.resize({ width: 16, height: 16 })
+    if (process.platform === 'darwin') {
+      trayIcon.setTemplateImage(true)
+    }
+  }
+
+  tray = new Tray(trayIcon)
+  tray.setToolTip('ClawChat')
+
+  const buildContextMenu = () => Menu.buildFromTemplate([
+    {
+      label: win?.isVisible() ? 'Hide ClawChat' : 'Show ClawChat',
+      click: () => toggleWindow(),
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true
+        app.quit()
+      },
+    },
+  ])
+
+  tray.setContextMenu(buildContextMenu())
+
+  // Rebuild context menu on click so Show/Hide label is always current
+  tray.on('click', () => toggleWindow())
+  tray.on('right-click', () => {
+    tray?.setContextMenu(buildContextMenu())
+    tray?.popUpContextMenu()
+  })
+}
+
+function toggleWindow() {
+  if (!win) return
+  if (win.isVisible() && win.isFocused()) {
+    win.hide()
+  } else {
+    win.show()
+    win.focus()
+  }
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -135,6 +193,25 @@ function createWindow() {
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
     win?.webContents.send('main-process-message', (new Date).toLocaleString())
+  })
+
+  // Hide to tray on close instead of quitting
+  win.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault()
+      win?.hide()
+      // On macOS, also hide the dock icon when minimized to tray
+      if (process.platform === 'darwin') {
+        app.dock?.hide()
+      }
+    }
+  })
+
+  // Show dock icon again when window is shown
+  win.on('show', () => {
+    if (process.platform === 'darwin') {
+      app.dock?.show()
+    }
   })
 
   if (VITE_DEV_SERVER_URL) {
@@ -165,11 +242,17 @@ app.on('activate', () => {
   }
 })
 
+// Allow Cmd+Q and app.quit() to actually quit (not just hide)
+app.on('before-quit', () => {
+  isQuitting = true
+})
+
 app.whenReady().then(() => {
   // Set app name (important for macOS menu)
   app.setName('ClawChat')
   
   createWindow()
+  createTray()
   
   // Enable context menu for text inputs, spell check, etc.
   contextMenu({
@@ -240,6 +323,11 @@ app.whenReady().then(() => {
       submenu: [
         { role: 'minimize' as const },
         { role: 'zoom' as const },
+        {
+          label: 'Minimize to Menu Bar',
+          accelerator: 'CommandOrControl+Shift+M',
+          click: () => win?.hide(),
+        },
         ...(isMac ? [
           { type: 'separator' as const },
           { role: 'front' as const }
