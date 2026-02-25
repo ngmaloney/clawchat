@@ -20,7 +20,6 @@ function getStore() {
         token: '',
       },
     })
-    console.log('[Main] Config store initialized at:', store.path)
   }
   return store
 }
@@ -98,18 +97,8 @@ ipcMain.handle('file:read', async (_event, filePath: string) => {
   }
 })
 
-// The built directory structure
-//
-// ├─┬─┬ dist
-// │ │ └── index.html
-// │ │
-// │ ├─┬ dist-electron
-// │ │ ├── main.js
-// │ │ └── preload.mjs
-// │
 process.env.APP_ROOT = path.join(__dirname, '..')
 
-// 🚧 Use ['ENV_NAME'] avoid vite:define plugin - Vite@2.x
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
@@ -189,11 +178,6 @@ function createWindow() {
     },
   })
 
-  // Test active push message to Renderer-process.
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', (new Date).toLocaleString())
-  })
-
   // Hide to tray on close (red X) — yellow minimize works normally
   win.on('close', (event) => {
     if (!isQuitting) {
@@ -204,10 +188,7 @@ function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
-    // Open DevTools in dev mode only
-    // win.webContents.openDevTools()
   } else {
-    // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 }
@@ -249,7 +230,7 @@ app.whenReady().then(() => {
     showSaveImageAs: true,
     showCopyImageAddress: true,
     showSearchWithGoogle: false,
-    showInspectElement: VITE_DEV_SERVER_URL ? true : false,
+    showInspectElement: !!VITE_DEV_SERVER_URL,
   })
   
   // Set custom application menu
