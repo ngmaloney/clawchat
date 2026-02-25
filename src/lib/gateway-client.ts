@@ -363,9 +363,14 @@ export class GatewayClient {
       maxProtocol: 3,
     }
     
-    console.log('[GatewayClient] Connect params:', JSON.stringify({
+    console.log('[GatewayClient] Connect params (full device details):', JSON.stringify({
       ...params,
-      auth: params.auth?.token ? { token: '***', deviceToken: params.auth.deviceToken ? '***' : undefined } : params.auth
+      auth: params.auth?.token ? { token: '***', deviceToken: params.auth.deviceToken ? '***' : undefined } : params.auth,
+      device: device ? {
+        ...device,
+        signature: device.signature.substring(0, 20) + '... (len=' + device.signature.length + ')',
+        publicKey: device.publicKey.substring(0, 20) + '... (len=' + device.publicKey.length + ')',
+      } : undefined
     }, null, 2))
 
     try {
