@@ -346,6 +346,11 @@ export class GatewayClient {
       minProtocol: 3,
       maxProtocol: 3,
     }
+    
+    console.log('[GatewayClient] Connect params:', JSON.stringify({
+      ...params,
+      auth: params.auth?.token ? { token: '***', deviceToken: params.auth.deviceToken ? '***' : undefined } : params.auth
+    }, null, 2))
 
     try {
       // Temporarily allow calls during handshaking
