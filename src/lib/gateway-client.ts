@@ -70,6 +70,7 @@ export class GatewayClient {
 
   private challengeNonce: string | null = null
   private challengeTs: number | null = null
+  private grantedScopes: string[] = []
   private deviceToken: string | undefined
 
   private readonly url: string
@@ -379,6 +380,12 @@ export class GatewayClient {
         if (authPayload?.deviceToken) {
           this.deviceToken = authPayload.deviceToken
           this.onDeviceToken?.(authPayload.deviceToken)
+        }
+
+        // Extract granted scopes
+        if (authPayload?.scopes) {
+          this.grantedScopes = authPayload.scopes
+          console.log('[GatewayClient] Granted scopes:', this.grantedScopes)
         }
 
         this.retryCount = 0
