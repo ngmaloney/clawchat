@@ -29,8 +29,8 @@ function toBase64(buf: ArrayBuffer): string {
  */
 function toBase64Url(buf: ArrayBuffer): string {
   return toBase64(buf)
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
     .replace(/=+$/, '')
 }
 
