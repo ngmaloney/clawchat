@@ -15,13 +15,13 @@ interface DeviceIdentity {
 
 function toBase64Url(buf: Uint8Array): string {
   return btoa(String.fromCharCode(...buf))
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
     .replace(/=+$/, '')
 }
 
 function fromBase64Url(str: string): Uint8Array {
-  const base64 = str.replaceAll('-', '+').replaceAll('_', '/')
+  const base64 = str.replace(/-/g, '+').replace(/_/g, '/')
   const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
   const binary = atob(padded)
   const bytes = new Uint8Array(binary.length)
@@ -32,7 +32,7 @@ function fromBase64Url(str: string): Uint8Array {
 }
 
 async function sha256(data: Uint8Array): Promise<string> {
-  const hash = await crypto.subtle.digest('SHA-256', data)
+  const hash = await crypto.subtle.digest('SHA-256', data.buffer as ArrayBuffer)
   return Array.from(new Uint8Array(hash))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('')
