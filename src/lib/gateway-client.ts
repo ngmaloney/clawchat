@@ -24,7 +24,7 @@ import {
   exportPublicKey,
   signChallenge,
   type SignaturePayload,
-} from './device-crypto'
+} from './device-crypto-ed25519'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -314,12 +314,12 @@ export class GatewayClient {
     let device: DeviceIdentity | undefined
     if (this.challengeNonce) {
       try {
-        const keyPair = await getOrCreateKeyPair()
-        const deviceId = await getDeviceId(keyPair.publicKey)
-        const publicKey = await exportPublicKey(keyPair.publicKey)
+        const identity = await getOrCreateKeyPair()
+        const deviceId = await getDeviceId(identity)
+        const publicKey = await exportPublicKey(identity)
         const signedAt = Date.now()  // Must be current time, not challenge time!
         
-        const signature = await signChallenge(keyPair.privateKey, {
+        const signature = await signChallenge(identity, {
           deviceId,
           clientId: 'cli',
           clientMode: 'cli',
@@ -341,11 +341,6 @@ export class GatewayClient {
         console.error('[GatewayClient] Failed to build device identity:', err)
       }
     }
-    
-    console.log('[GatewayClient] Device identity:', device ? 'PRESENT' : 'MISSING', {
-      hasNonce: !!this.challengeNonce,
-      hasTs: !!this.challengeTs
-    })
 
     const params: ConnectParams = {
       role: 'operator',
