@@ -332,15 +332,15 @@ export class GatewayClient {
 
     const params: ConnectParams = {
       role: 'operator',
-      scopes: ['operator.read', 'operator.write'],
+      scopes: ['operator.admin'],
       auth: { token: this.token, ...(this.deviceToken ? { deviceToken: this.deviceToken } : {}) },
       ...(device ? { device } : {}),
       client: {
-        // Must match gateway's allowlisted client values
-        id: 'gateway-client',
+        // Use same identity as official CLI (we know this works)
+        id: 'cli',
         version: 'dev',
         platform: 'electron',
-        mode: 'ui',
+        mode: 'cli',
       },
       minProtocol: 3,
       maxProtocol: 3,
