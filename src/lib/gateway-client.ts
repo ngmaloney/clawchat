@@ -23,7 +23,6 @@ import {
   getDeviceId,
   exportPublicKey,
   signChallenge,
-  type SignaturePayload,
 } from './device-crypto-ed25519'
 
 // ── Types ────────────────────────────────────────────────────
@@ -70,7 +69,6 @@ export class GatewayClient {
   private gatewayMaxPayload: number = 1048576 // Default 1MB
 
   private challengeNonce: string | null = null
-  private challengeTs: number | null = null
   private grantedScopes: string[] = []
   private deviceToken: string | undefined
 
@@ -225,7 +223,6 @@ export class GatewayClient {
       this.ws = null
     }
     this.challengeNonce = null
-    this.challengeTs = null
     this._rejectAllPending('Client cleanup')
   }
 
@@ -270,7 +267,6 @@ export class GatewayClient {
     // Handle connect.challenge → capture nonce, then perform handshake
     if (event === 'connect.challenge') {
       this.challengeNonce = (payload.nonce as string) ?? null
-      this.challengeTs = (payload.ts as number) ?? null
       this._doHandshake()
       return
     }
