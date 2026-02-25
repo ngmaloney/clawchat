@@ -1,8 +1,11 @@
 import type { ConnectionStatus } from '../types/protocol'
+import type { SessionInfo } from '../types/protocol'
 
 interface StatusBarProps {
   status: ConnectionStatus
   activeSession: string
+  sessions: SessionInfo[]
+  onSelectSession: (key: string) => void
   onDisconnect: () => void
 }
 
@@ -22,7 +25,17 @@ const statusLabels: Record<ConnectionStatus, string> = {
   error: 'Error',
 }
 
-export function StatusBar({ status, activeSession, onDisconnect }: StatusBarProps) {
+function sessionLabel(s: SessionInfo): string {
+  if (s.label) return s.label
+  const parts = s.key.split(':')
+  if (parts.length >= 3) {
+    const name = parts[2] === 'main' ? 'Main' : parts[2]
+    return `${name.charAt(0).toUpperCase()}${name.slice(1)} Agent`
+  }
+  return s.key
+}
+
+export function StatusBar({ status, activeSession, sessions, onSelectSession, onDisconnect }: StatusBarProps) {
   return (
     <div style={{
       display: 'flex',
@@ -49,7 +62,30 @@ export function StatusBar({ status, activeSession, onDisconnect }: StatusBarProp
           <span>{statusLabels[status]}</span>
         </div>
         <span style={{ color: '#555' }}>|</span>
-        <span style={{ color: '#aaa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeSession}</span>
+        <select
+          value={activeSession}
+          onChange={(e) => onSelectSession(e.target.value)}
+          style={{
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#aaa',
+            fontSize: '0.75rem',
+            cursor: 'pointer',
+            outline: 'none',
+            padding: 0,
+            fontFamily: 'inherit',
+          }}
+        >
+          {sessions.length === 0 ? (
+            <option value={activeSession}>{activeSession}</option>
+          ) : (
+            sessions.map((s) => (
+              <option key={s.key} value={s.key} style={{ backgroundColor: '#16213e', color: '#aaa' }}>
+                {sessionLabel(s)}
+              </option>
+            ))
+          )}
+        </select>
       </div>
 
       <button
