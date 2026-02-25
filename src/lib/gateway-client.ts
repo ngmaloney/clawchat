@@ -333,7 +333,7 @@ export class GatewayClient {
 
     const params: ConnectParams = {
       role: 'operator',
-      scopes: ['operator.admin'],
+      scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
       auth: { token: this.token, ...(this.deviceToken ? { deviceToken: this.deviceToken } : {}) },
       ...(device ? { device } : {}),
       client: {
