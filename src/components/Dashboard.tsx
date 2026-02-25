@@ -8,10 +8,11 @@ import { useChat } from '../hooks/useChat'
 interface DashboardProps {
   status: ConnectionStatus
   client: GatewayClient | null
+  gatewayUrl: string
   onDisconnect: () => void
 }
 
-export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
+export function Dashboard({ status, client, gatewayUrl, onDisconnect }: DashboardProps) {
   const {
     sessions,
     activeSessionKey,
@@ -60,6 +61,7 @@ export function Dashboard({ status, client, onDisconnect }: DashboardProps) {
         activeSession={activeSessionKey}
         sessions={sessions}
         onSelectSession={setActiveSessionKey}
+        gatewayUrl={gatewayUrl}
         onDisconnect={onDisconnect}
       />
     </div>

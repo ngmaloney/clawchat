@@ -6,7 +6,18 @@ interface StatusBarProps {
   activeSession: string
   sessions: SessionInfo[]
   onSelectSession: (key: string) => void
+  gatewayUrl: string
   onDisconnect: () => void
+}
+
+function extractHost(url: string): string {
+  try {
+    // URL constructor handles ws:// and wss:// fine
+    const parsed = new URL(url)
+    return parsed.hostname
+  } catch {
+    return url
+  }
 }
 
 const statusColors: Record<ConnectionStatus, string> = {
@@ -46,10 +57,11 @@ function tokenColor(n: number): string {
   return '#555'                      // default dim
 }
 
-export function StatusBar({ status, activeSession, sessions, onSelectSession, onDisconnect }: StatusBarProps) {
+export function StatusBar({ status, activeSession, sessions, onSelectSession, gatewayUrl, onDisconnect }: StatusBarProps) {
   const activeSessionInfo = sessions.find(s => s.key === activeSession)
   const activeModel = activeSessionInfo?.model
   const totalTokens = activeSessionInfo?.totalTokens
+  const host = extractHost(gatewayUrl)
 
   return (
     <div style={{
@@ -75,6 +87,7 @@ export function StatusBar({ status, activeSession, sessions, onSelectSession, on
               ? 'pulse 1.5s ease-in-out infinite' : undefined,
           }} />
           <span>{statusLabels[status]}</span>
+          <span style={{ color: '#555', marginLeft: '0.25rem' }}>({host})</span>
         </div>
         <span style={{ color: '#555' }}>|</span>
         <select
