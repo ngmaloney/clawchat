@@ -1,8 +1,8 @@
-import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import { readFileSync } from 'node:fs'
+
 import Store from 'electron-store'
 import contextMenu from 'electron-context-menu'
 
@@ -111,8 +111,10 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  const iconPath = path.join(process.env.VITE_PUBLIC!, 'tray-icon.png')
-  tray = new Tray(nativeImage.createFromBuffer(readFileSync(iconPath)))
+  // macOS requires a Template Image: black on transparent, filename ends in "Template"
+  // Both 1x (trayIconTemplate.png) and 2x (trayIconTemplate@2x.png) must exist
+  const iconPath = path.join(process.env.VITE_PUBLIC!, 'trayIconTemplate.png')
+  tray = new Tray(iconPath)
   tray.setToolTip('ClawChat')
 
   const buildContextMenu = () => Menu.buildFromTemplate([
