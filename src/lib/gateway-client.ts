@@ -69,7 +69,6 @@ export class GatewayClient {
   private gatewayMaxPayload: number = 1048576 // Default 1MB
 
   private challengeNonce: string | null = null
-  private grantedScopes: string[] = []
   private deviceToken: string | undefined
 
   private readonly url: string
@@ -176,7 +175,6 @@ export class GatewayClient {
     this.ws = ws
 
     ws.onopen = () => {
-      console.log('[GatewayClient] WS open, awaiting connect.challenge…')
       this._setStatus('handshaking')
     }
 
@@ -185,7 +183,6 @@ export class GatewayClient {
     }
 
     ws.onclose = (ev) => {
-      console.log(`[GatewayClient] WS closed (code: ${ev.code}, reason: ${ev.reason})`)
       this.ws = null
       this._rejectAllPending(`WebSocket closed (code: ${ev.code})`)
 
@@ -257,7 +254,7 @@ export class GatewayClient {
         this._handleResponse(frame as ResponseFrame)
         break
       default:
-        console.log('[GatewayClient] Unknown frame type:', frame)
+        break
     }
   }
 
@@ -302,7 +299,6 @@ export class GatewayClient {
   }
 
   private async _doHandshake(): Promise<void> {
-    console.log('[GatewayClient] Performing connect handshake…')
 
     // Build device identity only when we already hold a deviceToken
     // (i.e. the device was previously paired). Sending an unsolicited device
@@ -354,16 +350,6 @@ export class GatewayClient {
       maxProtocol: 3,
     }
     
-    console.log('[GatewayClient] Connect params (full device details):', JSON.stringify({
-      ...params,
-      auth: params.auth?.token ? { token: '***', deviceToken: params.auth.deviceToken ? '***' : undefined } : params.auth,
-      device: device ? {
-        ...device,
-        signature: device.signature.substring(0, 20) + '... (len=' + device.signature.length + ')',
-        publicKey: device.publicKey.substring(0, 20) + '... (len=' + device.publicKey.length + ')',
-      } : undefined
-    }, null, 2))
-
     try {
       // Temporarily allow calls during handshaking
       const prevStatus = this.status
@@ -383,31 +369,15 @@ export class GatewayClient {
       })
 
       if ((payload as Record<string, unknown>).type === 'hello-ok') {
-        console.log('[GatewayClient] Handshake complete — connected!')
-        console.log('[GatewayClient] Full hello-ok payload:', JSON.stringify(payload, null, 2))
-
-        // Extract maxPayload from policy if available
         const snapshot = (payload as any).snapshot
         if (snapshot?.policy?.maxPayload) {
           this.gatewayMaxPayload = snapshot.policy.maxPayload
-          console.log('[GatewayClient] Gateway maxPayload:', this.gatewayMaxPayload)
         }
 
-        // Extract and persist deviceToken from hello-ok
         const authPayload = (payload as any).auth
-        console.log('[GatewayClient] Auth payload:', authPayload)
-        
         if (authPayload?.deviceToken) {
           this.deviceToken = authPayload.deviceToken
           this.onDeviceToken?.(authPayload.deviceToken)
-        }
-
-        // Extract granted scopes
-        if (authPayload?.scopes) {
-          this.grantedScopes = authPayload.scopes
-          console.log('[GatewayClient] Granted scopes:', this.grantedScopes)
-        } else {
-          console.warn('[GatewayClient] NO SCOPES in auth payload!')
         }
 
         this.retryCount = 0
@@ -432,7 +402,6 @@ export class GatewayClient {
 
     const delay = Math.min(BASE_DELAY * Math.pow(2, this.retryCount), MAX_DELAY)
     this.retryCount++
-    console.log(`[GatewayClient] Reconnecting in ${delay}ms (attempt ${this.retryCount})`)
     this._setStatus('connecting')
     this.reconnectTimer = setTimeout(() => this._connect(), delay)
   }
