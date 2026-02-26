@@ -167,7 +167,7 @@ function createSSHTunnel(config: SSHConfig): Promise<number> {
     const client = new SSHClient()
     sshClient = client
 
-    const keyPath = config.privateKeyPath || `${os.homedir()}/.ssh/id_rsa`
+    const keyPath = (config.privateKeyPath || '~/.ssh/id_rsa').replace(/^~/, os.homedir())
     let privateKey: Buffer
     try {
       privateKey = fsSync.readFileSync(keyPath)

@@ -95,7 +95,7 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
         host: sshHost,
         port: parseInt(sshPort) || 22,
         username: sshUser,
-        privateKeyPath: sshKeyPath.replace('~', ''),
+        privateKeyPath: sshKeyPath,
         remotePort: parseInt(sshRemotePort) || 18789,
       })
 
