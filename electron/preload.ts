@@ -18,6 +18,16 @@ contextBridge.exposeInMainWorld('api', {
       size: number
     }>,
   },
+  ssh: {
+    connect: (config: {
+      host: string
+      port: number
+      username: string
+      privateKeyPath: string
+      remotePort: number
+    }) => ipcRenderer.invoke('ssh:connect', config) as Promise<{ success: boolean; localPort?: number; error?: string }>,
+    disconnect: () => ipcRenderer.invoke('ssh:disconnect') as Promise<void>,
+  },
 })
 
 // Keep legacy ipcRenderer bridge for compatibility

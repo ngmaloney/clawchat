@@ -7,10 +7,17 @@ function App() {
   const [credentials, setCredentials] = useState<{ url: string; token: string; deviceToken?: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Load saved credentials on mount
+  // Load saved credentials on mount — skip auto-connect for SSH mode
+  // (the tunnel must be re-established manually each session)
   useEffect(() => {
     const loadCredentials = async () => {
       try {
+        const connectMode = await window.api.store.get('connectMode') as string
+        if (connectMode === 'ssh') {
+          // Show the connect screen pre-filled; user connects manually
+          setLoading(false)
+          return
+        }
         const url = await window.api.store.get('gatewayUrl') as string
         const token = await window.api.store.get('token') as string
         const deviceToken = await window.api.store.get('deviceToken') as string | undefined
@@ -33,18 +40,25 @@ function App() {
     autoConnect: !!credentials,
   })
 
+  const [isSshMode, setIsSshMode] = useState(false)
+
   const handleConnect = useCallback(async (url: string, token: string) => {
+    const tunnelMode = url.startsWith('ws://127.0.0.1:')
+    setIsSshMode(tunnelMode)
     setCredentials({ url, token })
-    await window.api.store.set('gatewayUrl', url)
-    await window.api.store.set('token', token)
+    // Don't persist the ephemeral tunnel URL — SSH config is saved by ConnectScreen
+    if (!tunnelMode) {
+      await window.api.store.set('gatewayUrl', url)
+      await window.api.store.set('token', token)
+    }
   }, [])
 
   const handleDisconnect = useCallback(async () => {
     disconnect()
+    if (isSshMode) await window.api.ssh.disconnect()
+    setIsSshMode(false)
     setCredentials(null)
-    // Note: we keep the token in the store so the form pre-fills on next launch.
-    // The user can clear it manually if they want.
-  }, [disconnect])
+  }, [disconnect, isSshMode])
 
   if (loading) {
     return (
