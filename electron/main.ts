@@ -116,7 +116,7 @@ function createTray() {
   if (icon.isEmpty()) {
     throw new Error(`Tray icon not found or empty: ${iconPath}`)
   }
-  tray = new Tray(icon)
+  tray = new Tray(icon, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890')
   tray.setToolTip('ClawChat')
 
   const buildContextMenu = () => Menu.buildFromTemplate([
@@ -216,10 +216,7 @@ app.whenReady().then(() => {
   app.setName('ClawChat')
   
   createWindow()
-  // Defer tray creation until after renderer loads — required on some macOS/Electron setups
-  win!.webContents.once('did-finish-load', () => {
-    try { createTray() } catch (err) { process.stderr.write(`[ClawChat] Tray error: ${err}\n`) }
-  })
+  createTray()
   
   // Enable context menu for text inputs, spell check, etc.
   contextMenu({
