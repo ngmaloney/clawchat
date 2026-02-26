@@ -111,15 +111,11 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  const iconPath = path.join(process.env.VITE_PUBLIC!, 'trayIconTemplate.png')
-  const icon = nativeImage.createFromPath(iconPath)
-  if (icon.isEmpty()) {
-    throw new Error(`Tray icon not found or empty: ${iconPath}`)
-  }
-  tray = new Tray(icon, 'a1b2c3d4-e5f6-7890-abcd-ef1234567890')
+  // Exact pattern from official Electron fiddle docs
+  const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAACTSURBVHgBpZKBCYAgEEV/TeAIjuIIbdQIuUGt0CS1gW1iZ2jIVaTnhw+Cvs8/OYDJA4Y8kR3ZR2/kmazxJbpUEfQ/Dm/UG7wVwHkjlQdMFfDdJMFaACebnjJGyDWgcnZu1/lrCrl6NCoEHJBrDwEr5NrT6ko/UV8xdLAC2N49mlc5CylpYh8wCwqrvbBGLoKGvz8Bfq0QPWEUo/EAAAAASUVORK5CYII=')
+  tray = new Tray(icon)
   tray.setToolTip('ClawChat')
-
-  const buildContextMenu = () => Menu.buildFromTemplate([
+  const contextMenu = Menu.buildFromTemplate([
     {
       label: win?.isVisible() ? 'Hide ClawChat' : 'Show ClawChat',
       click: () => toggleWindow(),
@@ -127,23 +123,11 @@ function createTray() {
     { type: 'separator' },
     {
       label: 'Quit',
-      click: () => {
-        isQuitting = true
-        app.quit()
-      },
+      click: () => { isQuitting = true; app.quit() },
     },
   ])
-
-  tray.setContextMenu(buildContextMenu())
-
-  tray.on('click', () => {
-    tray?.setContextMenu(buildContextMenu())
-    toggleWindow()
-  })
-
-  tray.on('right-click', () => {
-    tray?.setContextMenu(buildContextMenu())
-  })
+  tray.setContextMenu(contextMenu)
+  tray.on('click', () => toggleWindow())
 }
 
 function toggleWindow() {
