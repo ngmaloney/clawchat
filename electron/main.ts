@@ -110,12 +110,8 @@ let win: BrowserWindow | null
 let tray: Tray | null = null
 let isQuitting = false
 
-function createTray() {
-  // Exact pattern from official Electron fiddle docs
-  const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAACTSURBVHgBpZKBCYAgEEV/TeAIjuIIbdQIuUGt0CS1gW1iZ2jIVaTnhw+Cvs8/OYDJA4Y8kR3ZR2/kmazxJbpUEfQ/Dm/UG7wVwHkjlQdMFfDdJMFaACebnjJGyDWgcnZu1/lrCrl6NCoEHJBrDwEr5NrT6ko/UV8xdLAC2N49mlc5CylpYh8wCwqrvbBGLoKGvz8Bfq0QPWEUo/EAAAAASUVORK5CYII=')
-  tray = new Tray(icon)
-  tray.setToolTip('ClawChat')
-  const contextMenu = Menu.buildFromTemplate([
+function buildTrayMenu() {
+  return Menu.buildFromTemplate([
     {
       label: win?.isVisible() ? 'Hide ClawChat' : 'Show ClawChat',
       click: () => toggleWindow(),
@@ -126,8 +122,22 @@ function createTray() {
       click: () => { isQuitting = true; app.quit() },
     },
   ])
-  tray.setContextMenu(contextMenu)
+}
+
+function createTray() {
+  // Exact pattern from official Electron fiddle docs
+  const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAACTSURBVHgBpZKBCYAgEEV/TeAIjuIIbdQIuUGt0CS1gW1iZ2jIVaTnhw+Cvs8/OYDJA4Y8kR3ZR2/kmazxJbpUEfQ/Dm/UG7wVwHkjlQdMFfDdJMFaACebnjJGyDWgcnZu1/lrCrl6NCoEHJBrDwEr5NrT6ko/UV8xdLAC2N49mlc5CylpYh8wCwqrvbBGLoKGvz8Bfq0QPWEUo/EAAAAASUVORK5CYII=')
+  tray = new Tray(icon)
+  tray.setToolTip('ClawChat')
+
+  // On macOS, setContextMenu() hijacks ALL clicks (left + right) to show the menu,
+  // which prevents the 'click' event from firing. Instead, handle clicks manually:
+  // - left-click  → toggle window
+  // - right-click → show context menu (rebuilt fresh so labels are always correct)
   tray.on('click', () => toggleWindow())
+  tray.on('right-click', () => {
+    tray?.popUpContextMenu(buildTrayMenu())
+  })
 }
 
 function toggleWindow() {
