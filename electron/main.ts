@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray, nativeImage } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
@@ -111,10 +111,19 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  // macOS requires a Template Image: black on transparent, filename ends in "Template"
-  // Both 1x (trayIconTemplate.png) and 2x (trayIconTemplate@2x.png) must exist
-  const iconPath = path.join(process.env.VITE_PUBLIC!, 'trayIconTemplate.png')
-  tray = new Tray(iconPath)
+  // Embed icon as base64 to avoid any path-resolution issues.
+  // Black on transparent; setTemplateImage(true) lets macOS invert for dark mode.
+  const icon = nativeImage.createEmpty()
+  icon.addRepresentation({
+    scaleFactor: 1.0,
+    dataURL: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAJElEQVR42mNgoCL4TwKmSDNWQ0YNGAwGUJwO0A2hKCWOAhIBALQedIzholc6AAAAAElFTkSuQmCC',
+  })
+  icon.addRepresentation({
+    scaleFactor: 2.0,
+    dataURL: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAQ0lEQVR42mNgGAUI8J8ETAv9A+uA/2RgauofdcCoA0YdMOqAUQeMOmDgHTDaHkA3hNJW1YAZQJH+ke37UTAKRsHIBQDIg9I8c9nVjgAAAABJRU5ErkJggg==',
+  })
+  icon.setTemplateImage(true)
+  tray = new Tray(icon)
   tray.setToolTip('ClawChat')
 
   const buildContextMenu = () => Menu.buildFromTemplate([
