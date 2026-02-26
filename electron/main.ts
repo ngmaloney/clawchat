@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu, Tray, native
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import Store from 'electron-store'
 import contextMenu from 'electron-context-menu'
 
@@ -109,11 +110,9 @@ let win: BrowserWindow | null
 let tray: Tray | null = null
 let isQuitting = false
 
-// 16x16 orange PNG used as tray icon until a proper asset is added
-const TRAY_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR4nGP4WSxGEmIY1TCqYfhqAAAYwIIQghBcrQAAAABJRU5ErkJggg=='
-
 function createTray() {
-  tray = new Tray(nativeImage.createFromDataURL(TRAY_ICON))
+  const iconPath = path.join(process.env.VITE_PUBLIC!, 'tray-icon.png')
+  tray = new Tray(nativeImage.createFromBuffer(readFileSync(iconPath)))
   tray.setToolTip('ClawChat')
 
   const buildContextMenu = () => Menu.buildFromTemplate([
