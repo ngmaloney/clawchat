@@ -137,7 +137,6 @@ function createTray() {
   tray.setContextMenu(buildContextMenu())
 
   tray.on('click', () => {
-    // Rebuild menu so Show/Hide label reflects current state
     tray?.setContextMenu(buildContextMenu())
     toggleWindow()
   })
@@ -217,7 +216,10 @@ app.whenReady().then(() => {
   app.setName('ClawChat')
   
   createWindow()
-  createTray()
+  // Defer tray creation until after renderer loads — required on some macOS/Electron setups
+  win!.webContents.once('did-finish-load', () => {
+    try { createTray() } catch (err) { process.stderr.write(`[ClawChat] Tray error: ${err}\n`) }
+  })
   
   // Enable context menu for text inputs, spell check, etc.
   contextMenu({
