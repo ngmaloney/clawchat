@@ -79,7 +79,7 @@ function App() {
     return <ConnectScreen onConnect={handleConnect} status={status} />
   }
 
-  return <Dashboard status={status} client={client} gatewayUrl={credentials.url} onDisconnect={handleDisconnect} />
+  return <Dashboard status={status} client={client} gatewayUrl={credentials.url} isSshTunnel={isSshMode} onDisconnect={handleDisconnect} />
 }
 
 export default App

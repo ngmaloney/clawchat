@@ -7,6 +7,7 @@ interface StatusBarProps {
   sessions: SessionInfo[]
   onSelectSession: (key: string) => void
   gatewayUrl: string
+  isSshTunnel?: boolean
   onDisconnect: () => void
 }
 
@@ -57,7 +58,7 @@ function tokenColor(n: number): string {
   return '#555'                      // default dim
 }
 
-export function StatusBar({ status, activeSession, sessions, onSelectSession, gatewayUrl, onDisconnect }: StatusBarProps) {
+export function StatusBar({ status, activeSession, sessions, onSelectSession, gatewayUrl, isSshTunnel, onDisconnect }: StatusBarProps) {
   const activeSessionInfo = sessions.find(s => s.key === activeSession)
   const activeModel = activeSessionInfo?.model
   const totalTokens = activeSessionInfo?.totalTokens
@@ -88,6 +89,19 @@ export function StatusBar({ status, activeSession, sessions, onSelectSession, ga
           }} />
           <span>{statusLabels[status]}</span>
           <span style={{ marginLeft: '0.25rem' }}>[{host}]</span>
+          {isSshTunnel && (
+            <span style={{
+              backgroundColor: '#1e3a5f',
+              color: '#60a5fa',
+              fontSize: '0.65rem',
+              fontWeight: 600,
+              padding: '0.1rem 0.35rem',
+              borderRadius: '3px',
+              letterSpacing: '0.03em',
+            }}>
+              SSH
+            </span>
+          )}
         </div>
         <span style={{ color: '#555' }}>|</span>
         <select

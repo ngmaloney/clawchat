@@ -9,10 +9,11 @@ interface DashboardProps {
   status: ConnectionStatus
   client: GatewayClient | null
   gatewayUrl: string
+  isSshTunnel?: boolean
   onDisconnect: () => void
 }
 
-export function Dashboard({ status, client, gatewayUrl, onDisconnect }: DashboardProps) {
+export function Dashboard({ status, client, gatewayUrl, isSshTunnel, onDisconnect }: DashboardProps) {
   const {
     sessions,
     activeSessionKey,
@@ -62,6 +63,7 @@ export function Dashboard({ status, client, gatewayUrl, onDisconnect }: Dashboar
         sessions={sessions}
         onSelectSession={setActiveSessionKey}
         gatewayUrl={gatewayUrl}
+        isSshTunnel={isSshTunnel}
         onDisconnect={onDisconnect}
       />
     </div>
