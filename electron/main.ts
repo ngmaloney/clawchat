@@ -111,7 +111,7 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  const iconPath = path.join(process.env.APP_ROOT!, 'public', 'icon.png')
+  const iconPath = path.join(process.env.VITE_PUBLIC!, 'trayIconTemplate.png')
   const icon = nativeImage.createFromPath(iconPath)
   if (icon.isEmpty()) {
     throw new Error(`Tray icon not found or empty: ${iconPath}`)
