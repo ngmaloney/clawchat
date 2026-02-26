@@ -2,6 +2,10 @@ import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu } from 'elect
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
+import fsSync from 'node:fs'
+import net from 'node:net'
+import os from 'node:os'
+import { Client as SSHClient } from 'ssh2'
 import Store from 'electron-store'
 import contextMenu from 'electron-context-menu'
 
@@ -117,6 +121,122 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+
+// ─── SSH Tunnel ────────────────────────────────────────────────────────────
+
+export interface SSHConfig {
+  host: string
+  port: number
+  username: string
+  privateKeyPath: string
+  remotePort: number
+}
+
+let sshClient: InstanceType<typeof SSHClient> | null = null
+let tunnelServer: net.Server | null = null
+
+function getAvailablePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer()
+    server.listen(0, '127.0.0.1', () => {
+      const port = (server.address() as net.AddressInfo).port
+      server.close(() => resolve(port))
+    })
+    server.on('error', reject)
+  })
+}
+
+function destroySSHTunnel(): Promise<void> {
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      if (sshClient) { sshClient.end(); sshClient = null }
+      resolve()
+    }
+    if (tunnelServer) {
+      tunnelServer.close(() => { tunnelServer = null; cleanup() })
+    } else {
+      cleanup()
+    }
+  })
+}
+
+function createSSHTunnel(config: SSHConfig): Promise<number> {
+  return destroySSHTunnel().then(() => new Promise((resolve, reject) => {
+    const client = new SSHClient()
+    sshClient = client
+
+    const keyPath = (config.privateKeyPath || '~/.ssh/id_rsa').replace(/^~/, os.homedir())
+    let privateKey: Buffer
+    try {
+      privateKey = fsSync.readFileSync(keyPath)
+    } catch {
+      return reject(new Error(`SSH key not found: ${keyPath}`))
+    }
+
+    client.on('ready', async () => {
+      let localPort: number
+      try { localPort = await getAvailablePort() } catch (e) { return reject(e) }
+
+      const server = net.createServer((socket) => {
+        client.forwardOut('127.0.0.1', localPort, '127.0.0.1', config.remotePort, (err, stream) => {
+          if (err) { socket.destroy(); return }
+          socket.pipe(stream)
+          stream.pipe(socket)
+          socket.on('close', () => stream.end())
+          stream.on('close', () => socket.destroy())
+        })
+      })
+
+      tunnelServer = server
+
+      server.listen(localPort, '127.0.0.1', () => resolve(localPort))
+      server.on('error', reject)
+    })
+
+    client.on('error', reject)
+
+    client.connect({
+      host: config.host,
+      port: config.port || 22,
+      username: config.username,
+      privateKey,
+      // TOFU: prompt user on unknown host
+      hostVerifier: (_key: unknown, callback: (result: boolean) => void) => {
+        const knownHostsPath = `${os.homedir()}/.ssh/known_hosts`
+        // If known_hosts doesn't exist or host isn't in it, ask user
+        const hostLine = `${config.host}`
+        const known = fsSync.existsSync(knownHostsPath)
+          ? fsSync.readFileSync(knownHostsPath, 'utf8').includes(hostLine)
+          : false
+        if (known) { callback(true); return }
+        // Prompt user
+        dialog.showMessageBox({
+          type: 'warning',
+          title: 'Unknown SSH Host',
+          message: `The host "${config.host}" is not in your known_hosts.\n\nDo you want to trust it and continue?`,
+          buttons: ['Trust & Connect', 'Cancel'],
+          defaultId: 0,
+          cancelId: 1,
+        }).then(({ response }) => callback(response === 0))
+      },
+    })
+  }))
+}
+
+ipcMain.handle('ssh:connect', async (_event, config: SSHConfig) => {
+  try {
+    const localPort = await createSSHTunnel(config)
+    return { success: true, localPort }
+  } catch (err) {
+    return { success: false, error: (err as Error).message }
+  }
+})
+
+ipcMain.handle('ssh:disconnect', async () => {
+  await destroySSHTunnel()
+})
+
+// ──────────────────────────────────────────────────────────────────────────
 
 function createWindow() {
   win = new BrowserWindow({
@@ -271,6 +391,6 @@ app.whenReady().then(() => {
 })
 
 app.on('will-quit', () => {
-  // Unregister all shortcuts
   globalShortcut.unregisterAll()
+  destroySSHTunnel()
 })
