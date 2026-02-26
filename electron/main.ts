@@ -134,7 +134,6 @@ export interface SSHConfig {
 
 let sshClient: InstanceType<typeof SSHClient> | null = null
 let tunnelServer: net.Server | null = null
-let tunnelLocalPort: number | null = null
 
 function getAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -151,7 +150,6 @@ function destroySSHTunnel(): Promise<void> {
   return new Promise((resolve) => {
     const cleanup = () => {
       if (sshClient) { sshClient.end(); sshClient = null }
-      tunnelLocalPort = null
       resolve()
     }
     if (tunnelServer) {
@@ -190,7 +188,6 @@ function createSSHTunnel(config: SSHConfig): Promise<number> {
       })
 
       tunnelServer = server
-      tunnelLocalPort = localPort
 
       server.listen(localPort, '127.0.0.1', () => resolve(localPort))
       server.on('error', reject)
@@ -204,7 +201,7 @@ function createSSHTunnel(config: SSHConfig): Promise<number> {
       username: config.username,
       privateKey,
       // TOFU: prompt user on unknown host
-      hostVerifier: (key, callback) => {
+      hostVerifier: (_key: unknown, callback: (result: boolean) => void) => {
         const knownHostsPath = `${os.homedir()}/.ssh/known_hosts`
         // If known_hosts doesn't exist or host isn't in it, ask user
         const hostLine = `${config.host}`
