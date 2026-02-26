@@ -111,13 +111,9 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  // Use an SF Symbol (macOS built-in, guaranteed valid, adapts to dark/light mode)
-  // Falls back to embedded base64 PNG if running on older macOS
-  let icon = nativeImage.createFromNamedImage('bubble.left.fill')
-  if (icon.isEmpty()) {
-    icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAJElEQVR42mNgoCL4TwKmSDNWQ0YNGAwGUJwO0A2hKCWOAhIBALQedIzholc6AAAAAElFTkSuQmCC')
-    icon.setTemplateImage(true)
-  }
+  // Solid teal 16x16 RGB — diagnostic icon to confirm tray slot is visible
+  // TODO: replace with proper template icon once confirmed working
+  const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR42mPQr88jCTGMahjVMHw1AAC9fhwQCkC0+AAAAABJRU5ErkJggg==')
   tray = new Tray(icon)
   tray.setToolTip('ClawChat')
 
