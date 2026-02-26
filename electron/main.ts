@@ -111,18 +111,13 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  // Embed icon as base64 to avoid any path-resolution issues.
-  // Black on transparent; setTemplateImage(true) lets macOS invert for dark mode.
-  const icon = nativeImage.createEmpty()
-  icon.addRepresentation({
-    scaleFactor: 1.0,
-    dataURL: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAJElEQVR42mNgoCL4TwKmSDNWQ0YNGAwGUJwO0A2hKCWOAhIBALQedIzholc6AAAAAElFTkSuQmCC',
-  })
-  icon.addRepresentation({
-    scaleFactor: 2.0,
-    dataURL: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAQ0lEQVR42mNgGAUI8J8ETAv9A+uA/2RgauofdcCoA0YdMOqAUQeMOmDgHTDaHkA3hNJW1YAZQJH+ke37UTAKRsHIBQDIg9I8c9nVjgAAAABJRU5ErkJggg==',
-  })
-  icon.setTemplateImage(true)
+  // Use an SF Symbol (macOS built-in, guaranteed valid, adapts to dark/light mode)
+  // Falls back to embedded base64 PNG if running on older macOS
+  let icon = nativeImage.createFromNamedImage('bubble.left.fill')
+  if (icon.isEmpty()) {
+    icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAJElEQVR42mNgoCL4TwKmSDNWQ0YNGAwGUJwO0A2hKCWOAhIBALQedIzholc6AAAAAElFTkSuQmCC')
+    icon.setTemplateImage(true)
+  }
   tray = new Tray(icon)
   tray.setToolTip('ClawChat')
 
