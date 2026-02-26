@@ -111,9 +111,8 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  // createFromDataURL appears to silently produce empty images; use createFromBuffer instead
-  const pngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR42mPQr88jCTGMahjVMHw1AAC9fhwQCkC0+AAAAABJRU5ErkJggg==', 'base64')
-  const icon = nativeImage.createFromBuffer(pngBuffer)
+  const iconPath = path.join(process.env.APP_ROOT!, 'public', 'icon.png')
+  const icon = nativeImage.createFromPath(iconPath)
   tray = new Tray(icon)
   tray.setToolTip('ClawChat')
 
