@@ -111,9 +111,9 @@ let tray: Tray | null = null
 let isQuitting = false
 
 function createTray() {
-  // Solid teal 16x16 RGB — diagnostic icon to confirm tray slot is visible
-  // TODO: replace with proper template icon once confirmed working
-  const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR42mPQr88jCTGMahjVMHw1AAC9fhwQCkC0+AAAAABJRU5ErkJggg==')
+  // createFromDataURL appears to silently produce empty images; use createFromBuffer instead
+  const pngBuffer = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAFklEQVR42mPQr88jCTGMahjVMHw1AAC9fhwQCkC0+AAAAABJRU5ErkJggg==', 'base64')
+  const icon = nativeImage.createFromBuffer(pngBuffer)
   tray = new Tray(icon)
   tray.setToolTip('ClawChat')
 
