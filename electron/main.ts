@@ -128,7 +128,7 @@ function createTray() {
   // Exact pattern from official Electron fiddle docs
   const icon = nativeImage.createFromDataURL('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAACTSURBVHgBpZKBCYAgEEV/TeAIjuIIbdQIuUGt0CS1gW1iZ2jIVaTnhw+Cvs8/OYDJA4Y8kR3ZR2/kmazxJbpUEfQ/Dm/UG7wVwHkjlQdMFfDdJMFaACebnjJGyDWgcnZu1/lrCrl6NCoEHJBrDwEr5NrT6ko/UV8xdLAC2N49mlc5CylpYh8wCwqrvbBGLoKGvz8Bfq0QPWEUo/EAAAAASUVORK5CYII=')
   tray = new Tray(icon)
-  tray.setToolTip('ClawChat')
+  tray.setToolTip('ClawChat — Click to show/hide (or use ⌘⇧Space)')
 
   // On macOS, setContextMenu() hijacks ALL clicks (left + right) to show the menu,
   // which prevents the 'click' event from firing. Instead, handle clicks manually:
@@ -282,9 +282,9 @@ app.whenReady().then(() => {
         { role: 'minimize' as const },
         { role: 'zoom' as const },
         {
-          label: 'Minimize to Menu Bar',
-          accelerator: 'CommandOrControl+Shift+M',
-          click: () => win?.hide(),
+          label: 'Toggle Window (Hide/Show)',
+          accelerator: 'CommandOrControl+Shift+Space',
+          click: () => toggleWindow(),
         },
         ...(isMac ? [
           { type: 'separator' as const },
@@ -299,6 +299,11 @@ app.whenReady().then(() => {
   const menu = Menu.buildFromTemplate(template)
   Menu.setApplicationMenu(menu)
   
+  // Global toggle shortcut — works even when window is hidden (tray workaround for macOS 26)
+  globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    toggleWindow()
+  })
+
   // Register F12 to toggle DevTools
   globalShortcut.register('F12', () => {
     const focused = BrowserWindow.getFocusedWindow()
