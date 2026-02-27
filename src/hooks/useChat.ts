@@ -143,10 +143,14 @@ export function useChat(
       } else if (ev.state === 'final') {
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message?.attachments)
-        // Check if this run was locally initiated — if not, it came from another client
-        const isExternalRun = ev.runId != null && ev.runId !== activeRunIdRef.current
+        // If we received delta events, we were streaming this run locally.
+        // If not, this run was triggered by another client — reload history to
+        // surface their user message. Using this observable state avoids a
+        // race condition where the chat.send ack arrives after the final event.
+        let hadStreamingMessage = false
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
+          hadStreamingMessage = idx >= 0
           if (idx >= 0) {
             const updated = [...prev]
             updated[idx] = {
@@ -169,8 +173,7 @@ export function useChat(
         })
         activeRunIdRef.current = null
         setIsStreaming(false)
-        // If triggered by another client, reload history to surface the user's message
-        if (isExternalRun) {
+        if (!hadStreamingMessage) {
           void loadHistoryRef.current?.(sessionKeyRef.current)
         }
       } else if (ev.state === 'error') {
