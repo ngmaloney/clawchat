@@ -39,6 +39,7 @@ export function useGateway({ url, token, deviceToken, autoConnect = false }: Use
     })
 
     clientRef.current = newClient
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setClient(newClient)
 
     if (autoConnect) {
