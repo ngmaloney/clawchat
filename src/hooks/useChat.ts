@@ -238,7 +238,7 @@ export function useChat(
       setMessages(history)
       // Update cache with fresh data
       messagesCacheRef.current.set(sessionKey, history)
-    } catch (err) {
+    } catch {
       // Don't clear messages on error - keep the cached version if we have it
       if (!cached) {
         setMessages([])
@@ -345,7 +345,8 @@ export function useChat(
       await client.call('chat.abort', {
         sessionKey: sessionKeyRef.current,
       }) as unknown as ChatAbortResponse
-    } catch (err) {
+    } catch {
+      // ignore abort errors
     }
     // Streaming end will be handled by the final/error event
   }, [client, status])

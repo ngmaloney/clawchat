@@ -29,7 +29,8 @@ export function useSessions(client: GatewayClient | null, status: ConnectionStat
         s.key === DEFAULT_SESSION_KEY || (s.totalTokens ?? 0) > 0
       )
       setSessions(activeSessions)
-    } catch (err) {
+    } catch {
+      // ignore errors
     } finally {
       setLoading(false)
     }

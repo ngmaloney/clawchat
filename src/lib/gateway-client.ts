@@ -197,7 +197,7 @@ export class GatewayClient {
       }
     }
 
-    ws.onerror = (_err) => {
+    ws.onerror = () => {
       // onclose will fire after this
     }
   }
@@ -363,12 +363,14 @@ export class GatewayClient {
       if ((payload as Record<string, unknown>).type === 'hello-ok') {
 
         // Extract maxPayload from policy if available
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const snapshot = (payload as any).snapshot
         if (snapshot?.policy?.maxPayload) {
           this.gatewayMaxPayload = snapshot.policy.maxPayload
         }
 
         // Extract and persist deviceToken from hello-ok
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const authPayload = (payload as any).auth
         
         if (authPayload?.deviceToken) {
@@ -381,7 +383,7 @@ export class GatewayClient {
       } else {
         this._setStatus(prevStatus)
       }
-    } catch (err) {
+    } catch {
       this._setStatus('error')
       this.ws?.close()
     }
