@@ -2,8 +2,9 @@
  * Device identity helpers for OpenClaw Gateway Protocol v3.
  *
  * Uses Web Crypto API (SubtleCrypto) — ECDSA P-256 keypair stored as JWK
- * in electron-store via window.api.store.
+ * in Tauri config store via api.store.
  */
+import { api } from './tauri-bridge'
 
 const ALGORITHM: EcKeyGenParams = { name: 'ECDSA', namedCurve: 'P-256' }
 const SIGN_ALGORITHM: EcdsaParams = { name: 'ECDSA', hash: 'SHA-256' }
@@ -47,7 +48,7 @@ function toHex(buf: ArrayBuffer): string {
  * Load or generate a persistent ECDSA P-256 keypair.
  */
 export async function getOrCreateKeyPair(): Promise<CryptoKeyPair> {
-  const stored = await window.api.store.get(STORE_KEY) as StoredKeyPair | undefined
+  const stored = await api.store.get(STORE_KEY) as StoredKeyPair | undefined
 
   if (stored?.publicKey && stored?.privateKey) {
     const [publicKey, privateKey] = await Promise.all([
@@ -64,7 +65,7 @@ export async function getOrCreateKeyPair(): Promise<CryptoKeyPair> {
     crypto.subtle.exportKey('jwk', keyPair.privateKey),
   ])
 
-  await window.api.store.set(STORE_KEY, { publicKey: pubJwk, privateKey: privJwk })
+  await api.store.set(STORE_KEY, { publicKey: pubJwk, privateKey: privJwk })
 
   return keyPair
 }

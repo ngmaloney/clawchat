@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type KeyboardEvent, type DragEvent, type ClipboardEvent } from 'react'
+import { api } from '../lib/tauri-bridge'
 import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
 import { AttachmentPreview } from './AttachmentPreview'
 import type { FileAttachment } from '../lib/file-utils'
@@ -167,9 +168,9 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
 
   const handleAttachClick = useCallback(async () => {
     try {
-      const paths = await window.api.dialog.openFile()
+      const paths = await api.dialog.openFile()
       if (paths && paths.length > 0) {
-        const filePromises = paths.map(path => window.api.file.read(path))
+        const filePromises = paths.map(path => api.file.read(path))
         const fileData = await Promise.all(filePromises)
         setAttachments(prev => {
           const updated = [...prev, ...fileData]

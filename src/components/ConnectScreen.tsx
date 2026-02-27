@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { api } from '../lib/tauri-bridge'
 import type { ConnectionStatus } from '../types/protocol'
 
 interface ConnectScreenProps {
@@ -47,14 +48,14 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
   useEffect(() => {
     const load = async () => {
       try {
-        const savedUrl = await window.api.store.get('gatewayUrl') as string
-        const savedToken = await window.api.store.get('token') as string
-        const savedMode = await window.api.store.get('connectMode') as ConnectMode
-        const savedSshHost = await window.api.store.get('sshHost') as string
-        const savedSshPort = await window.api.store.get('sshPort') as string
-        const savedSshUser = await window.api.store.get('sshUser') as string
-        const savedSshKeyPath = await window.api.store.get('sshKeyPath') as string
-        const savedSshRemotePort = await window.api.store.get('sshRemotePort') as string
+        const savedUrl = await api.store.get('gatewayUrl') as string
+        const savedToken = await api.store.get('token') as string
+        const savedMode = await api.store.get('connectMode') as ConnectMode
+        const savedSshHost = await api.store.get('sshHost') as string
+        const savedSshPort = await api.store.get('sshPort') as string
+        const savedSshUser = await api.store.get('sshUser') as string
+        const savedSshKeyPath = await api.store.get('sshKeyPath') as string
+        const savedSshRemotePort = await api.store.get('sshRemotePort') as string
 
         if (savedUrl) setUrl(savedUrl)
         if (savedToken) setToken(savedToken)
@@ -84,14 +85,14 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
     setIsTunneling(true)
     try {
       // Persist SSH config
-      await window.api.store.set('connectMode', 'ssh')
-      await window.api.store.set('sshHost', sshHost)
-      await window.api.store.set('sshPort', sshPort)
-      await window.api.store.set('sshUser', sshUser)
-      await window.api.store.set('sshKeyPath', sshKeyPath)
-      await window.api.store.set('sshRemotePort', sshRemotePort)
+      await api.store.set('connectMode', 'ssh')
+      await api.store.set('sshHost', sshHost)
+      await api.store.set('sshPort', sshPort)
+      await api.store.set('sshUser', sshUser)
+      await api.store.set('sshKeyPath', sshKeyPath)
+      await api.store.set('sshRemotePort', sshRemotePort)
 
-      const result = await window.api.ssh.connect({
+      const result = await api.ssh.connect({
         host: sshHost,
         port: parseInt(sshPort) || 22,
         username: sshUser,

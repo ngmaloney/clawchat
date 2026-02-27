@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { api } from '../lib/tauri-bridge'
 import { GatewayClient } from '../lib/gateway-client'
 import type { ConnectionStatus } from '../types/protocol'
 
@@ -32,7 +33,7 @@ export function useGateway({ url, token, deviceToken, autoConnect = false }: Use
       deviceToken,
       onStatusChange: (s) => setStatus(s),
       onDeviceToken: (dt) => {
-        window.api.store.set('deviceToken', dt)
+        api.store.set('deviceToken', dt)
       },
     })
 

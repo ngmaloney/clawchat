@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { api } from './lib/tauri-bridge'
 import { ConnectScreen } from './components/ConnectScreen'
 import { Dashboard } from './components/Dashboard'
 import { useGateway } from './hooks/useGateway'
@@ -12,15 +13,15 @@ function App() {
   useEffect(() => {
     const loadCredentials = async () => {
       try {
-        const connectMode = await window.api.store.get('connectMode') as string
+        const connectMode = await api.store.get('connectMode') as string
         if (connectMode === 'ssh') {
           // Show the connect screen pre-filled; user connects manually
           setLoading(false)
           return
         }
-        const url = await window.api.store.get('gatewayUrl') as string
-        const token = await window.api.store.get('token') as string
-        const deviceToken = await window.api.store.get('deviceToken') as string | undefined
+        const url = await api.store.get('gatewayUrl') as string
+        const token = await api.store.get('token') as string
+        const deviceToken = await api.store.get('deviceToken') as string | undefined
         if (url && token) {
           setCredentials({ url, token, deviceToken })
         }
@@ -48,14 +49,14 @@ function App() {
     setCredentials({ url, token })
     // Don't persist the ephemeral tunnel URL — SSH config is saved by ConnectScreen
     if (!tunnelMode) {
-      await window.api.store.set('gatewayUrl', url)
-      await window.api.store.set('token', token)
+      await api.store.set('gatewayUrl', url)
+      await api.store.set('token', token)
     }
   }, [])
 
   const handleDisconnect = useCallback(async () => {
     disconnect()
-    if (isSshMode) await window.api.ssh.disconnect()
+    if (isSshMode) await api.ssh.disconnect()
     setIsSshMode(false)
     setCredentials(null)
   }, [disconnect, isSshMode])
