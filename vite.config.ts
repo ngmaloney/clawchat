@@ -10,14 +10,6 @@ export default defineConfig({
     electron({
       main: {
         entry: 'electron/main.ts',
-        vite: {
-          build: {
-            rollupOptions: {
-              // ssh2 includes native .node binaries — must not be bundled
-              external: ['ssh2'],
-            },
-          },
-        },
       },
       preload: {
         // Shortcut of `build.rollupOptions.input`.
