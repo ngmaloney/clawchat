@@ -20,13 +20,15 @@ export interface GatewayHandle {
 
 export function useGateway({ url, token, deviceToken, autoConnect = false }: UseGatewayOptions): GatewayHandle {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
+  const [client, setClient] = useState<GatewayClient | null>(null)
+  // Internal ref for callbacks that need stable access without re-subscribing
   const clientRef = useRef<GatewayClient | null>(null)
 
   // Create / recreate the client when url or token change
   useEffect(() => {
     if (!url || !token) return
 
-    const client = new GatewayClient({
+    const newClient = new GatewayClient({
       url,
       token,
       deviceToken,
@@ -36,15 +38,17 @@ export function useGateway({ url, token, deviceToken, autoConnect = false }: Use
       },
     })
 
-    clientRef.current = client
+    clientRef.current = newClient
+    setClient(newClient)
 
     if (autoConnect) {
-      client.connect()
+      newClient.connect()
     }
 
     return () => {
-      client.disconnect()
+      newClient.disconnect()
       clientRef.current = null
+      setClient(null)
     }
   }, [url, token, deviceToken, autoConnect])
 
@@ -59,7 +63,7 @@ export function useGateway({ url, token, deviceToken, autoConnect = false }: Use
 
   return {
     status,
-    client: clientRef.current,
+    client,
     connect,
     disconnect,
   }

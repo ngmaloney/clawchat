@@ -245,7 +245,7 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
       )}
 
       {/* Slash Command Menu */}
-      {showSlashMenu && filteredCommands.length > 0 && inputContainerRef.current && (
+      {showSlashMenu && filteredCommands.length > 0 && (
         <SlashCommandMenu
           commands={filteredCommands}
           selectedIndex={slashSelectedIndex}
