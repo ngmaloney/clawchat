@@ -99,6 +99,8 @@ export function useChat(
   const sessionKeyRef = useRef(activeSessionKey)
   // Cache messages per session to avoid losing local state on session switch
   const messagesCacheRef = useRef<Map<string, DisplayMessage[]>>(new Map())
+  // Ref to loadHistory so event handlers always call the latest version
+  const loadHistoryRef = useRef<((sessionKey: string) => Promise<void>) | null>(null)
 
   // Keep ref in sync
   sessionKeyRef.current = activeSessionKey
@@ -141,6 +143,8 @@ export function useChat(
       } else if (ev.state === 'final') {
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message.attachments)
+        // Check if this run was locally initiated — if not, it came from another client
+        const isExternalRun = ev.runId != null && ev.runId !== activeRunIdRef.current
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -165,6 +169,10 @@ export function useChat(
         })
         activeRunIdRef.current = null
         setIsStreaming(false)
+        // If triggered by another client, reload history to surface the user's message
+        if (isExternalRun) {
+          void loadHistoryRef.current?.(sessionKeyRef.current)
+        }
       } else if (ev.state === 'error') {
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
@@ -235,6 +243,9 @@ export function useChat(
       setHistoryLoading(false)
     }
   }, [client, status])
+
+  // Keep ref to loadHistory current so event handlers (which close over initial value) can call it
+  loadHistoryRef.current = loadHistory
 
   // Track the last session we loaded history for
   const lastLoadedSessionRef = useRef<string | null>(null)
