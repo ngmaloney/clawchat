@@ -320,7 +320,7 @@ export class GatewayClient {
           clientId: 'cli',
           clientMode: 'cli',
           role: 'operator',
-          scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
+          scopes: ['operator.read', 'operator.write', 'operator.approvals', 'operator.pairing'],
           signedAtMs: signedAt,
           token: this.token || null,
           nonce: this.challengeNonce,
@@ -340,7 +340,7 @@ export class GatewayClient {
 
     const params: ConnectParams = {
       role: 'operator',
-      scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
+      scopes: ['operator.read', 'operator.write', 'operator.approvals', 'operator.pairing'],
       auth: { token: this.token, ...(this.deviceToken ? { deviceToken: this.deviceToken } : {}) },
       ...(device ? { device } : {}),
       client: {
