@@ -65,7 +65,6 @@ function filterLargeAttachments(attachments?: ChatAttachment[]): ChatAttachment[
     if (!att.content) return true
     const size = (att.content.length * 3) / 4
     if (size > MAX_ATTACHMENT_SIZE) {
-      console.warn(`[useChat] Filtered out large attachment: ${att.fileName || 'unknown'} (~${Math.round(size / 1024)}KB)`)
       return false
     }
     return true
@@ -237,7 +236,6 @@ export function useChat(
       // Update cache with fresh data
       messagesCacheRef.current.set(sessionKey, history)
     } catch (err) {
-      console.error('[useChat] Failed to load history:', err)
       // Don't clear messages on error - keep the cached version if we have it
       if (!cached) {
         setMessages([])
@@ -313,7 +311,6 @@ export function useChat(
 
       activeRunIdRef.current = ack.runId ?? null
     } catch (err) {
-      console.error('[useChat] Failed to send:', err)
       
       let errorMsg = err instanceof Error ? err.message : 'Failed to send message'
       
@@ -342,7 +339,6 @@ export function useChat(
         sessionKey: sessionKeyRef.current,
       }) as unknown as ChatAbortResponse
     } catch (err) {
-      console.error('[useChat] Failed to abort:', err)
     }
     // Streaming end will be handled by the final/error event
   }, [client, status])

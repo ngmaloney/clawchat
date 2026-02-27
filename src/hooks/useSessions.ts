@@ -30,7 +30,6 @@ export function useSessions(client: GatewayClient | null, status: ConnectionStat
       )
       setSessions(activeSessions)
     } catch (err) {
-      console.error('[useSessions] Failed to list sessions:', err)
     } finally {
       setLoading(false)
     }

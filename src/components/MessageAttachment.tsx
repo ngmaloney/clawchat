@@ -74,12 +74,10 @@ export function MessageAttachment({ attachment }: MessageAttachmentProps) {
                 win.document.close()
               }
             } catch (err) {
-              console.error('[MessageAttachment] Failed to open image in new window:', err)
               alert('Image too large to open in new window')
             }
           }}
           onError={(e) => {
-            console.error('[MessageAttachment] Failed to load image:', attachment.fileName)
             // Show broken image icon or placeholder
             e.currentTarget.style.display = 'none'
           }}

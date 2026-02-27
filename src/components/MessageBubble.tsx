@@ -57,7 +57,6 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         // Remove the markdown image from text
         text = text.replace(fullMatch, '')
       } catch (err) {
-        console.error('[MessageBubble] Failed to extract data URI:', err)
       }
     }
     

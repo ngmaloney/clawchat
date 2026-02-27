@@ -148,7 +148,6 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
         const attachment = await fileToBase64(file)
         newAttachments.push(attachment)
       } catch (err) {
-        console.error('Failed to read file:', file.name, err)
       }
     }
 
@@ -184,7 +183,6 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
         })
       }
     } catch (err) {
-      console.error('Failed to attach files:', err)
     }
   }, [])
 

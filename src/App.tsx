@@ -25,7 +25,6 @@ function App() {
           setCredentials({ url, token, deviceToken })
         }
       } catch (e) {
-        console.error('Failed to load credentials:', e)
       } finally {
         setLoading(false)
       }
