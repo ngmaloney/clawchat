@@ -182,6 +182,9 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                 placeholder="ws://localhost:18789"
                 disabled={isConnecting}
                 style={inputStyle}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               />
             </div>
             <div>
@@ -193,6 +196,9 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                 placeholder="Enter your Gateway token"
                 disabled={isConnecting}
                 style={inputStyle}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               />
             </div>
           </>
@@ -208,6 +214,9 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                   placeholder="user@myserver.com"
                   disabled={isConnecting}
                   style={inputStyle}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
                 />
               </div>
               <div style={{ width: '70px' }}>
@@ -218,6 +227,9 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                   onChange={(e) => setSshPort(e.target.value)}
                   disabled={isConnecting}
                   style={inputStyle}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
                 />
               </div>
             </div>
@@ -231,6 +243,9 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                 placeholder="ubuntu"
                 disabled={isConnecting}
                 style={inputStyle}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               />
             </div>
 
@@ -243,6 +258,9 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                 placeholder="~/.ssh/id_rsa"
                 disabled={isConnecting}
                 style={inputStyle}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               />
             </div>
 
@@ -256,6 +274,9 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                   placeholder="Gateway token"
                   disabled={isConnecting}
                   style={inputStyle}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
                 />
               </div>
               <div style={{ width: '80px' }}>
@@ -266,6 +287,9 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                   onChange={(e) => setSshRemotePort(e.target.value)}
                   disabled={isConnecting}
                   style={inputStyle}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
                 />
               </div>
             </div>

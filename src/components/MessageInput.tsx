@@ -303,6 +303,9 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
           placeholder={disabled ? 'Disconnected…' : 'Type a message… (Enter to send, Shift+Enter for newline, / for commands)'}
           disabled={disabled}
           rows={1}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
           style={{
             flex: 1,
             padding: '0.625rem 0.75rem',
