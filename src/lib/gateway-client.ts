@@ -69,7 +69,6 @@ export class GatewayClient {
   private gatewayMaxPayload: number = 1048576 // Default 1MB
 
   private challengeNonce: string | null = null
-  private grantedScopes: string[] = []
   private deviceToken: string | undefined
 
   private readonly url: string
@@ -375,11 +374,6 @@ export class GatewayClient {
         if (authPayload?.deviceToken) {
           this.deviceToken = authPayload.deviceToken
           this.onDeviceToken?.(authPayload.deviceToken)
-        }
-
-        // Extract granted scopes
-        if (authPayload?.scopes) {
-          this.grantedScopes = authPayload.scopes
         }
 
         this.retryCount = 0
