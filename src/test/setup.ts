@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { vi } from 'vitest'
+// vi is available globally via vitest.config.ts globals: true
 
 // Provide crypto.randomUUID used in useChat
 Object.defineProperty(globalThis, 'crypto', {

@@ -25,6 +25,7 @@ function App() {
           setCredentials({ url, token, deviceToken })
         }
       } catch {
+        // ignore load errors
       } finally {
         setLoading(false)
       }

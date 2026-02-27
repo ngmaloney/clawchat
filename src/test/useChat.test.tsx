@@ -61,7 +61,7 @@ describe('useChat', () => {
 
   it('does NOT reload history when a locally-sent message receives a final event', async () => {
     const historyCall = vi.fn().mockResolvedValue({ messages: [] })
-    ;(client.call as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+    vi.spyOn(client, 'call').mockImplementation((method: string) => {
       if (method === 'chat.history') return historyCall()
       if (method === 'chat.send') return Promise.resolve({ runId: 'run-1' })
       return Promise.resolve({})
@@ -98,12 +98,12 @@ describe('useChat', () => {
 
   it('DOES reload history when a final event arrives for an external run', async () => {
     const historyCall = vi.fn().mockResolvedValue({ messages: [] })
-    ;(client.call as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+    vi.spyOn(client, 'call').mockImplementation((method: string) => {
       if (method === 'chat.history') return historyCall()
       return Promise.resolve({})
     })
 
-    const { result: _ } = renderHook(() =>
+    renderHook(() =>
       useChat(client, 'connected', 'agent:main:main')
     )
 
@@ -125,7 +125,7 @@ describe('useChat', () => {
   // server state before the user could see them.
 
   it('preserves the user message after send + final without history reload', async () => {
-    ;(client.call as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+    vi.spyOn(client, 'call').mockImplementation((method: string) => {
       if (method === 'chat.history') return Promise.resolve({ messages: [] })
       if (method === 'chat.send') return Promise.resolve({ runId: 'run-1' })
       return Promise.resolve({})
@@ -159,7 +159,7 @@ describe('useChat', () => {
 
   // ── Bug 4: isStreaming never resets if final arrives before error ─────────
   it('resets isStreaming to false after final event', async () => {
-    ;(client.call as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+    vi.spyOn(client, 'call').mockImplementation((method: string) => {
       if (method === 'chat.history') return Promise.resolve({ messages: [] })
       if (method === 'chat.send') return Promise.resolve({ runId: 'run-1' })
       return Promise.resolve({})
@@ -185,7 +185,7 @@ describe('useChat', () => {
 
   // ── Sanity: events for a different session are ignored ────────────────────
   it('ignores chat events for a different session', async () => {
-    ;(client.call as ReturnType<typeof vi.fn>).mockResolvedValue({ messages: [] })
+    vi.spyOn(client, 'call').mockResolvedValue({ messages: [] })
 
     const { result } = renderHook(() =>
       useChat(client, 'connected', 'agent:main:main')
