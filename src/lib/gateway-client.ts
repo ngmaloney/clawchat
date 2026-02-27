@@ -24,6 +24,7 @@ import {
   exportPublicKey,
   signChallenge,
 } from './device-crypto-ed25519'
+import { logger } from './logger'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -175,6 +176,7 @@ export class GatewayClient {
     this.ws = ws
 
     ws.onopen = () => {
+      logger.debug('WS open, awaiting connect.challenge…')
       this._setStatus('handshaking')
     }
 
@@ -183,6 +185,7 @@ export class GatewayClient {
     }
 
     ws.onclose = (ev) => {
+      logger.debug(`WS closed (code: ${ev.code}, reason: ${ev.reason || 'none'})`)
       this.ws = null
       this._rejectAllPending(`WebSocket closed (code: ${ev.code})`)
 
@@ -193,12 +196,13 @@ export class GatewayClient {
       if (!this.intentionalClose && !isFatal) {
         this._scheduleReconnect()
       } else {
+        if (isFatal) logger.error(`Fatal connection error: ${ev.code} ${ev.reason}`)
         this._setStatus(isFatal ? 'error' : 'disconnected')
       }
     }
 
-    ws.onerror = () => {
-      // onclose will fire after this
+    ws.onerror = (err) => {
+      logger.warn('WS error (onclose will follow):', err)
     }
   }
 
@@ -237,7 +241,8 @@ export class GatewayClient {
     let frame: Frame
     try {
       frame = JSON.parse(ev.data as string) as Frame
-    } catch {
+    } catch (err) {
+      logger.warn('Received non-JSON message from gateway:', ev.data, err)
       return
     }
 
@@ -266,7 +271,7 @@ export class GatewayClient {
     const cbs = this.listeners.get(event)
     if (cbs) {
       for (const cb of cbs) {
-        try { cb(payload) } catch { /* ignore listener errors */ }
+        try { cb(payload) } catch (err) { logger.error('Event listener threw:', err) }
       }
     }
 
@@ -277,6 +282,7 @@ export class GatewayClient {
   private _handleResponse(frame: ResponseFrame): void {
     const req = this.pending.get(frame.id)
     if (!req) {
+      logger.warn('Unmatched response id:', frame.id)
       return
     }
 
@@ -292,6 +298,7 @@ export class GatewayClient {
   }
 
   private async _doHandshake(): Promise<void> {
+    logger.debug('Performing connect handshake…')
 
     // Build device identity only when we already hold a deviceToken
     // (i.e. the device was previously paired). Sending an unsolicited device
@@ -322,8 +329,8 @@ export class GatewayClient {
           signedAt,
           nonce: this.challengeNonce,
         }
-      } catch {
-        // identity build failed — connect without device field
+      } catch (err) {
+        logger.warn('Failed to build device identity, connecting without it:', err)
       }
     }
 
@@ -361,7 +368,6 @@ export class GatewayClient {
       })
 
       if ((payload as Record<string, unknown>).type === 'hello-ok') {
-
         // Extract maxPayload from policy if available
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const snapshot = (payload as any).snapshot
@@ -372,18 +378,20 @@ export class GatewayClient {
         // Extract and persist deviceToken from hello-ok
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const authPayload = (payload as any).auth
-        
         if (authPayload?.deviceToken) {
           this.deviceToken = authPayload.deviceToken
           this.onDeviceToken?.(authPayload.deviceToken)
         }
 
+        logger.info('Handshake complete — connected')
         this.retryCount = 0
         this._setStatus('connected')
       } else {
+        logger.warn('Unexpected handshake response:', payload)
         this._setStatus(prevStatus)
       }
-    } catch {
+    } catch (err) {
+      logger.error('Handshake failed:', err)
       this._setStatus('error')
       this.ws?.close()
     }
@@ -391,12 +399,14 @@ export class GatewayClient {
 
   private _scheduleReconnect(): void {
     if (this.retryCount >= this.maxRetries) {
+      logger.error(`Max retries (${this.maxRetries}) reached — giving up`)
       this._setStatus('error')
       return
     }
 
     const delay = Math.min(BASE_DELAY * Math.pow(2, this.retryCount), MAX_DELAY)
     this.retryCount++
+    logger.debug(`Reconnecting in ${delay}ms (attempt ${this.retryCount})`)
     this._setStatus('connecting')
     this.reconnectTimer = setTimeout(() => this._connect(), delay)
   }

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type DragEvent, type ClipboardEvent } from 'react'
+import { logger } from '../lib/logger'
 import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
 import { AttachmentPreview } from './AttachmentPreview'
 import type { FileAttachment } from '../lib/file-utils'
@@ -148,8 +149,8 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
       try {
         const attachment = await fileToBase64(file)
         newAttachments.push(attachment)
-      } catch {
-        // skip files that fail to convert
+      } catch (err) {
+        logger.warn('Failed to convert file to base64, skipping:', err)
       }
     }
 
@@ -184,8 +185,8 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
           return updated
         })
       }
-    } catch {
-      // file dialog cancelled or failed
+    } catch (err) {
+      logger.warn('File dialog error or cancelled:', err)
     }
   }, [])
 

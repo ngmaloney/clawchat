@@ -1,4 +1,5 @@
 import { formatFileSize, isImageFile } from '../lib/file-utils'
+import { logger } from '../lib/logger'
 
 export interface MessageAttachmentData {
   type: string
@@ -73,7 +74,8 @@ export function MessageAttachment({ attachment }: MessageAttachmentProps) {
                 win.document.write(`<!DOCTYPE html><html><head><title>${attachment.fileName}</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000;"><img src="${dataUrl}" style="max-width:100%; height:auto;" /></body></html>`)
                 win.document.close()
               }
-            } catch {
+            } catch (err) {
+              logger.warn('Failed to open image in new window:', err)
               alert('Image too large to open in new window')
             }
           }}

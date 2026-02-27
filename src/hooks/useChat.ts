@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GatewayClient } from '../lib/gateway-client'
+import { logger } from '../lib/logger'
 import type {
   ChatMessage,
   ChatHistoryResponse,
@@ -238,7 +239,8 @@ export function useChat(
       setMessages(history)
       // Update cache with fresh data
       messagesCacheRef.current.set(sessionKey, history)
-    } catch {
+    } catch (err) {
+      logger.error('Failed to load chat history for session:', sessionKey, err)
       // Don't clear messages on error - keep the cached version if we have it
       if (!cached) {
         setMessages([])
@@ -317,7 +319,7 @@ export function useChat(
 
       activeRunIdRef.current = ack.runId ?? null
     } catch (err) {
-      
+      logger.error('Failed to send message:', err)
       let errorMsg = err instanceof Error ? err.message : 'Failed to send message'
       
       // Detect WebSocket 1009 "Message Too Large" error
@@ -345,8 +347,8 @@ export function useChat(
       await client.call('chat.abort', {
         sessionKey: sessionKeyRef.current,
       }) as unknown as ChatAbortResponse
-    } catch {
-      // ignore abort errors
+    } catch (err) {
+      logger.warn('chat.abort failed:', err)
     }
     // Streaming end will be handled by the final/error event
   }, [client, status])

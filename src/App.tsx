@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ConnectScreen } from './components/ConnectScreen'
 import { Dashboard } from './components/Dashboard'
 import { useGateway } from './hooks/useGateway'
+import { logger } from './lib/logger'
 
 function App() {
   const [credentials, setCredentials] = useState<{ url: string; token: string; deviceToken?: string } | null>(null)
@@ -24,8 +25,8 @@ function App() {
         if (url && token) {
           setCredentials({ url, token, deviceToken })
         }
-      } catch {
-        // ignore load errors
+      } catch (err) {
+        logger.warn('Failed to load saved credentials:', err)
       } finally {
         setLoading(false)
       }
