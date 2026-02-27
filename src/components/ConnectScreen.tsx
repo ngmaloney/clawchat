@@ -77,7 +77,12 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
     setSshError('')
 
     if (mode === 'direct') {
-      if (url && token) onConnect(url, token)
+      if (url && token) {
+        await api.store.set('connectMode', 'direct')
+        await api.store.set('gatewayUrl', url)
+        await api.store.set('token', token)
+        onConnect(url, token)
+      }
       return
     }
 
@@ -86,6 +91,7 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
     try {
       // Persist SSH config
       await api.store.set('connectMode', 'ssh')
+      await api.store.set('token', token)
       await api.store.set('sshHost', sshHost)
       await api.store.set('sshPort', sshPort)
       await api.store.set('sshUser', sshUser)
