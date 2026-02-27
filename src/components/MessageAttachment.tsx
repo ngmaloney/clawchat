@@ -73,7 +73,7 @@ export function MessageAttachment({ attachment }: MessageAttachmentProps) {
                 win.document.write(`<!DOCTYPE html><html><head><title>${attachment.fileName}</title></head><body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#000;"><img src="${dataUrl}" style="max-width:100%; height:auto;" /></body></html>`)
                 win.document.close()
               }
-            } catch (err) {
+            } catch {
               alert('Image too large to open in new window')
             }
           }}

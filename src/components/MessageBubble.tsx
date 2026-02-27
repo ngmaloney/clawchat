@@ -56,7 +56,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         
         // Remove the markdown image from text
         text = text.replace(fullMatch, '')
-      } catch (err) {
+      } catch {
+        // skip invalid image data
       }
     }
     

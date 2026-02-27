@@ -24,7 +24,7 @@ function App() {
         if (url && token) {
           setCredentials({ url, token, deviceToken })
         }
-      } catch (e) {
+      } catch {
       } finally {
         setLoading(false)
       }

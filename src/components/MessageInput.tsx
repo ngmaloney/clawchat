@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type KeyboardEvent, type DragEvent, type ClipboardEvent } from 'react'
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type DragEvent, type ClipboardEvent } from 'react'
 import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
 import { AttachmentPreview } from './AttachmentPreview'
 import type { FileAttachment } from '../lib/file-utils'
@@ -42,11 +42,12 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const inputContainerRef = useRef<HTMLDivElement>(null)
 
-  const filteredCommands = text.startsWith('/')
-    ? SLASH_COMMANDS.filter(cmd => 
-        cmd.command.toLowerCase().startsWith(text.toLowerCase())
-      )
-    : []
+  const filteredCommands = useMemo(
+    () => text.startsWith('/')
+      ? SLASH_COMMANDS.filter(cmd => cmd.command.toLowerCase().startsWith(text.toLowerCase()))
+      : [],
+    [text]
+  )
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
@@ -147,7 +148,8 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
       try {
         const attachment = await fileToBase64(file)
         newAttachments.push(attachment)
-      } catch (err) {
+      } catch {
+        // skip files that fail to convert
       }
     }
 
@@ -182,7 +184,8 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
           return updated
         })
       }
-    } catch (err) {
+    } catch {
+      // file dialog cancelled or failed
     }
   }, [])
 

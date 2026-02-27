@@ -39,6 +39,7 @@ ipcMain.handle('store:set', (_event, key: string, value: unknown) => {
 })
 
 ipcMain.handle('store:delete', (_event, key: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getStore().delete(key as any)
 })
 
