@@ -250,31 +250,31 @@ export function useChat(
   // Track the last session we loaded history for
   const lastLoadedSessionRef = useRef<string | null>(null)
   
-  // Reload history when active session changes
+  // Reload history when active session changes or on initial connect.
+  // Uses loadHistoryRef (not loadHistory directly) so that transient function
+  // reference changes — caused by status/client cycling during reconnects —
+  // do NOT re-trigger this effect and spuriously reload history.
   useEffect(() => {
-    // Only load history when connected and session key is available
     if (status === 'connected' && activeSessionKey) {
-      // Only reload if this is a different session OR we have no messages cached
       const isDifferentSession = lastLoadedSessionRef.current !== activeSessionKey
       const hasNoCache = !messagesCacheRef.current.has(activeSessionKey)
-      
+
       if (isDifferentSession || hasNoCache) {
-        void loadHistory(activeSessionKey)
+        // Only reset streaming state on an actual session change, not every render
+        activeRunIdRef.current = null
+        setIsStreaming(false)
+        void loadHistoryRef.current?.(activeSessionKey)
         lastLoadedSessionRef.current = activeSessionKey
       }
-      // If same session and we have cache, don't reload (preserves failed messages)
     } else if (!activeSessionKey) {
-      // Only clear messages if there's no active session
       setMessages([])
       lastLoadedSessionRef.current = null
+      activeRunIdRef.current = null
+      setIsStreaming(false)
     }
     // If disconnected but session key exists, keep existing messages
     // (don't clear on temporary disconnections)
-    
-    // Reset streaming state on session switch
-    activeRunIdRef.current = null
-    setIsStreaming(false)
-  }, [activeSessionKey, status, loadHistory])
+  }, [activeSessionKey, status])
 
   const send = useCallback(async (text: string, attachments?: ChatAttachment[]) => {
     if (!client || status !== 'connected' || !text.trim()) return
