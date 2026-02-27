@@ -2,10 +2,10 @@ import { app, BrowserWindow, ipcMain, dialog, globalShortcut, Menu } from 'elect
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
-import fsSync from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
-import { Client as SSHClient } from 'ssh2'
+import { spawn } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import Store from 'electron-store'
 import contextMenu from 'electron-context-menu'
 
@@ -123,6 +123,8 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 let win: BrowserWindow | null
 
 // ─── SSH Tunnel ────────────────────────────────────────────────────────────
+// Uses the system `ssh` binary (same as terminal) instead of a JS SSH
+// implementation — avoids native module issues and routing quirks.
 
 export interface SSHConfig {
   host: string
@@ -132,8 +134,7 @@ export interface SSHConfig {
   remotePort: number
 }
 
-let sshClient: InstanceType<typeof SSHClient> | null = null
-let tunnelServer: net.Server | null = null
+let sshProcess: ChildProcess | null = null
 
 function getAvailablePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -148,78 +149,55 @@ function getAvailablePort(): Promise<number> {
 
 function destroySSHTunnel(): Promise<void> {
   return new Promise((resolve) => {
-    const cleanup = () => {
-      if (sshClient) { sshClient.end(); sshClient = null }
-      resolve()
-    }
-    if (tunnelServer) {
-      tunnelServer.close(() => { tunnelServer = null; cleanup() })
-    } else {
-      cleanup()
-    }
+    if (!sshProcess) { resolve(); return }
+    const proc = sshProcess
+    sshProcess = null
+    proc.kill()
+    proc.once('exit', () => resolve())
+    setTimeout(resolve, 1000) // force resolve after 1s if process hangs
   })
 }
 
 function createSSHTunnel(config: SSHConfig): Promise<number> {
-  return destroySSHTunnel().then(() => new Promise((resolve, reject) => {
-    const client = new SSHClient()
-    sshClient = client
-
+  return destroySSHTunnel().then(() => getAvailablePort()).then((localPort) => new Promise((resolve, reject) => {
     const keyPath = (config.privateKeyPath || '~/.ssh/id_rsa').replace(/^~/, os.homedir())
-    let privateKey: Buffer
-    try {
-      privateKey = fsSync.readFileSync(keyPath)
-    } catch {
-      return reject(new Error(`SSH key not found: ${keyPath}`))
-    }
 
-    client.on('ready', async () => {
-      let localPort: number
-      try { localPort = await getAvailablePort() } catch (e) { return reject(e) }
+    const args = [
+      '-N',                                     // no remote command
+      '-o', 'StrictHostKeyChecking=accept-new', // TOFU — accept new, reject changed
+      '-o', 'ExitOnForwardFailure=yes',         // fail fast if port forward fails
+      '-o', 'ServerAliveInterval=30',           // keep-alive
+      '-o', 'BatchMode=yes',                    // no interactive prompts
+      '-L', `${localPort}:127.0.0.1:${config.remotePort}`,
+      '-p', String(config.port || 22),
+      '-i', keyPath,
+      `${config.username}@${config.host}`,
+    ]
 
-      const server = net.createServer((socket) => {
-        client.forwardOut('127.0.0.1', localPort, '127.0.0.1', config.remotePort, (err, stream) => {
-          if (err) { socket.destroy(); return }
-          socket.pipe(stream)
-          stream.pipe(socket)
-          socket.on('close', () => stream.end())
-          stream.on('close', () => socket.destroy())
-        })
+    const proc = spawn('ssh', args, { stdio: 'pipe' })
+    sshProcess = proc
+
+    let stderr = ''
+    proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString() })
+    proc.on('error', (err) => reject(new Error(`ssh not found: ${err.message}`)))
+    proc.on('exit', (code) => {
+      if (sshProcess === null) return // intentional kill
+      reject(new Error(stderr.trim() || `SSH exited with code ${code}`))
+    })
+
+    // Poll until the local port accepts connections (tunnel is ready)
+    let waited = 0
+    const poll = () => {
+      const sock = net.createConnection({ port: localPort, host: '127.0.0.1' })
+      sock.on('connect', () => { sock.destroy(); resolve(localPort) })
+      sock.on('error', () => {
+        waited += 200
+        if (proc.exitCode !== null) return // process already died
+        if (waited < 15000) setTimeout(poll, 200)
+        else reject(new Error('SSH tunnel timed out'))
       })
-
-      tunnelServer = server
-
-      server.listen(localPort, '127.0.0.1', () => resolve(localPort))
-      server.on('error', reject)
-    })
-
-    client.on('error', reject)
-
-    client.connect({
-      host: config.host,
-      port: config.port || 22,
-      username: config.username,
-      privateKey,
-      // TOFU: prompt user on unknown host
-      hostVerifier: (_key: unknown, callback: (result: boolean) => void) => {
-        const knownHostsPath = `${os.homedir()}/.ssh/known_hosts`
-        // If known_hosts doesn't exist or host isn't in it, ask user
-        const hostLine = `${config.host}`
-        const known = fsSync.existsSync(knownHostsPath)
-          ? fsSync.readFileSync(knownHostsPath, 'utf8').includes(hostLine)
-          : false
-        if (known) { callback(true); return }
-        // Prompt user
-        dialog.showMessageBox({
-          type: 'warning',
-          title: 'Unknown SSH Host',
-          message: `The host "${config.host}" is not in your known_hosts.\n\nDo you want to trust it and continue?`,
-          buttons: ['Trust & Connect', 'Cancel'],
-          defaultId: 0,
-          cancelId: 1,
-        }).then(({ response }) => callback(response === 0))
-      },
-    })
+    }
+    setTimeout(poll, 300)
   }))
 }
 
