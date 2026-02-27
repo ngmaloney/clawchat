@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { GatewayClient } from '../lib/gateway-client'
+import { logger } from '../lib/logger'
 import type {
   ChatMessage,
   ChatHistoryResponse,
@@ -65,7 +66,6 @@ function filterLargeAttachments(attachments?: ChatAttachment[]): ChatAttachment[
     if (!att.content) return true
     const size = (att.content.length * 3) / 4
     if (size > MAX_ATTACHMENT_SIZE) {
-      console.warn(`[useChat] Filtered out large attachment: ${att.fileName || 'unknown'} (~${Math.round(size / 1024)}KB)`)
       return false
     }
     return true
@@ -99,6 +99,12 @@ export function useChat(
   const sessionKeyRef = useRef(activeSessionKey)
   // Cache messages per session to avoid losing local state on session switch
   const messagesCacheRef = useRef<Map<string, DisplayMessage[]>>(new Map())
+  // Ref to loadHistory so event handlers always call the latest version
+  const loadHistoryRef = useRef<((sessionKey: string) => Promise<void>) | null>(null)
+  // Set to true synchronously when user initiates a send, before any async work.
+  // Cleared on final/error. Lets the final handler distinguish "we sent this"
+  // from "another client sent this" without relying on React state or async acks.
+  const pendingLocalSendRef = useRef(false)
 
   // Keep ref in sync
   sessionKeyRef.current = activeSessionKey
@@ -121,7 +127,7 @@ export function useChat(
 
       if (ev.state === 'delta') {
         const text = extractText(ev.message)
-        const attachments = filterLargeAttachments(ev.message.attachments)
+        const attachments = filterLargeAttachments(ev.message?.attachments)
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -140,7 +146,11 @@ export function useChat(
         })
       } else if (ev.state === 'final') {
         const text = extractText(ev.message)
-        const attachments = filterLargeAttachments(ev.message.attachments)
+        const attachments = filterLargeAttachments(ev.message?.attachments)
+        // pendingLocalSendRef is set synchronously in send() before any async work,
+        // so it's always accurate regardless of React batching or ack timing.
+        const wasLocalRun = pendingLocalSendRef.current
+        pendingLocalSendRef.current = false
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -150,7 +160,7 @@ export function useChat(
               text,
               attachments,
               streaming: false,
-              timestamp: ev.message.timestamp,
+              timestamp: ev.message?.timestamp,
             }
             return updated
           }
@@ -159,13 +169,17 @@ export function useChat(
             role: 'assistant' as const,
             text,
             attachments,
-            timestamp: ev.message.timestamp,
+            timestamp: ev.message?.timestamp,
             streaming: false,
           }]
         })
         activeRunIdRef.current = null
         setIsStreaming(false)
+        if (!wasLocalRun) {
+          void loadHistoryRef.current?.(sessionKeyRef.current)
+        }
       } else if (ev.state === 'error') {
+        pendingLocalSendRef.current = false
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -226,7 +240,7 @@ export function useChat(
       // Update cache with fresh data
       messagesCacheRef.current.set(sessionKey, history)
     } catch (err) {
-      console.error('[useChat] Failed to load history:', err)
+      logger.error('Failed to load chat history for session:', sessionKey, err)
       // Don't clear messages on error - keep the cached version if we have it
       if (!cached) {
         setMessages([])
@@ -236,34 +250,39 @@ export function useChat(
     }
   }, [client, status])
 
+  // Keep ref to loadHistory current so event handlers (which close over initial value) can call it
+  loadHistoryRef.current = loadHistory
+
   // Track the last session we loaded history for
   const lastLoadedSessionRef = useRef<string | null>(null)
   
-  // Reload history when active session changes
+  // Reload history when active session changes or on initial connect.
+  // Uses loadHistoryRef (not loadHistory directly) so that transient function
+  // reference changes — caused by status/client cycling during reconnects —
+  // do NOT re-trigger this effect and spuriously reload history.
   useEffect(() => {
-    // Only load history when connected and session key is available
     if (status === 'connected' && activeSessionKey) {
-      // Only reload if this is a different session OR we have no messages cached
       const isDifferentSession = lastLoadedSessionRef.current !== activeSessionKey
       const hasNoCache = !messagesCacheRef.current.has(activeSessionKey)
-      
+
       if (isDifferentSession || hasNoCache) {
-        void loadHistory(activeSessionKey)
+        // Only reset streaming state on an actual session change, not every render
+        activeRunIdRef.current = null
+        pendingLocalSendRef.current = false
+        setIsStreaming(false)
+        void loadHistoryRef.current?.(activeSessionKey)
         lastLoadedSessionRef.current = activeSessionKey
       }
-      // If same session and we have cache, don't reload (preserves failed messages)
     } else if (!activeSessionKey) {
-      // Only clear messages if there's no active session
       setMessages([])
       lastLoadedSessionRef.current = null
+      activeRunIdRef.current = null
+      pendingLocalSendRef.current = false
+      setIsStreaming(false)
     }
     // If disconnected but session key exists, keep existing messages
     // (don't clear on temporary disconnections)
-    
-    // Reset streaming state on session switch
-    activeRunIdRef.current = null
-    setIsStreaming(false)
-  }, [activeSessionKey, status, loadHistory])
+  }, [activeSessionKey, status])
 
   const send = useCallback(async (text: string, attachments?: ChatAttachment[]) => {
     if (!client || status !== 'connected' || !text.trim()) return
@@ -278,6 +297,7 @@ export function useChat(
     }
     setMessages((prev) => [...prev, userMsg])
     setIsStreaming(true)
+    pendingLocalSendRef.current = true
 
     try {
       const params: {
@@ -299,8 +319,7 @@ export function useChat(
 
       activeRunIdRef.current = ack.runId ?? null
     } catch (err) {
-      console.error('[useChat] Failed to send:', err)
-      
+      logger.error('Failed to send message:', err)
       let errorMsg = err instanceof Error ? err.message : 'Failed to send message'
       
       // Detect WebSocket 1009 "Message Too Large" error
@@ -310,6 +329,7 @@ export function useChat(
         errorMsg = `**📎 File too large to send**\n\nThis attachment exceeds the ${maxPayloadMB}MB gateway limit.\n\n**Quick fix:** Try compressing or resizing the image first.\n\n**Advanced:** You can increase the gateway limit by editing \`~/.openclaw/openclaw.json\` - see docs.openclaw.ai for details.`
       }
       
+      pendingLocalSendRef.current = false
       setMessages((prev) => [...prev, {
         id: newMsgId(),
         role: 'assistant',
@@ -328,7 +348,7 @@ export function useChat(
         sessionKey: sessionKeyRef.current,
       }) as unknown as ChatAbortResponse
     } catch (err) {
-      console.error('[useChat] Failed to abort:', err)
+      logger.warn('chat.abort failed:', err)
     }
     // Streaming end will be handled by the final/error event
   }, [client, status])

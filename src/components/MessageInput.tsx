@@ -1,4 +1,5 @@
-import { useCallback, useRef, useState, type KeyboardEvent, type DragEvent, type ClipboardEvent } from 'react'
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type DragEvent, type ClipboardEvent } from 'react'
+import { logger } from '../lib/logger'
 import { SlashCommandMenu, type SlashCommand } from './SlashCommandMenu'
 import { AttachmentPreview } from './AttachmentPreview'
 import type { FileAttachment } from '../lib/file-utils'
@@ -42,11 +43,12 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const inputContainerRef = useRef<HTMLDivElement>(null)
 
-  const filteredCommands = text.startsWith('/')
-    ? SLASH_COMMANDS.filter(cmd => 
-        cmd.command.toLowerCase().startsWith(text.toLowerCase())
-      )
-    : []
+  const filteredCommands = useMemo(
+    () => text.startsWith('/')
+      ? SLASH_COMMANDS.filter(cmd => cmd.command.toLowerCase().startsWith(text.toLowerCase()))
+      : [],
+    [text]
+  )
 
   const handleSend = useCallback(() => {
     const trimmed = text.trim()
@@ -148,7 +150,7 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
         const attachment = await fileToBase64(file)
         newAttachments.push(attachment)
       } catch (err) {
-        console.error('Failed to read file:', file.name, err)
+        logger.warn('Failed to convert file to base64, skipping:', err)
       }
     }
 
@@ -184,7 +186,7 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
         })
       }
     } catch (err) {
-      console.error('Failed to attach files:', err)
+      logger.warn('File dialog error or cancelled:', err)
     }
   }, [])
 
@@ -244,7 +246,7 @@ export function MessageInput({ onSend, onAbort, isStreaming, disabled }: Message
       )}
 
       {/* Slash Command Menu */}
-      {showSlashMenu && filteredCommands.length > 0 && inputContainerRef.current && (
+      {showSlashMenu && filteredCommands.length > 0 && (
         <SlashCommandMenu
           commands={filteredCommands}
           selectedIndex={slashSelectedIndex}

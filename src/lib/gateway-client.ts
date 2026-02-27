@@ -24,6 +24,7 @@ import {
   exportPublicKey,
   signChallenge,
 } from './device-crypto-ed25519'
+import { logger } from './logger'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -69,7 +70,6 @@ export class GatewayClient {
   private gatewayMaxPayload: number = 1048576 // Default 1MB
 
   private challengeNonce: string | null = null
-  private grantedScopes: string[] = []
   private deviceToken: string | undefined
 
   private readonly url: string
@@ -176,7 +176,7 @@ export class GatewayClient {
     this.ws = ws
 
     ws.onopen = () => {
-      console.log('[GatewayClient] WS open, awaiting connect.challenge…')
+      logger.debug('WS open, awaiting connect.challenge…')
       this._setStatus('handshaking')
     }
 
@@ -185,7 +185,7 @@ export class GatewayClient {
     }
 
     ws.onclose = (ev) => {
-      console.log(`[GatewayClient] WS closed (code: ${ev.code}, reason: ${ev.reason})`)
+      logger.debug(`WS closed (code: ${ev.code}, reason: ${ev.reason || 'none'})`)
       this.ws = null
       this._rejectAllPending(`WebSocket closed (code: ${ev.code})`)
 
@@ -196,16 +196,13 @@ export class GatewayClient {
       if (!this.intentionalClose && !isFatal) {
         this._scheduleReconnect()
       } else {
+        if (isFatal) logger.error(`Fatal connection error: ${ev.code} ${ev.reason}`)
         this._setStatus(isFatal ? 'error' : 'disconnected')
-        if (isFatal) {
-          console.error(`[GatewayClient] Fatal connection error: ${ev.code} ${ev.reason}`)
-        }
       }
     }
 
     ws.onerror = (err) => {
-      console.error('[GatewayClient] WS error:', err)
-      // onclose will fire after this
+      logger.warn('WS error (onclose will follow):', err)
     }
   }
 
@@ -244,8 +241,8 @@ export class GatewayClient {
     let frame: Frame
     try {
       frame = JSON.parse(ev.data as string) as Frame
-    } catch {
-      console.warn('[GatewayClient] Non-JSON message:', ev.data)
+    } catch (err) {
+      logger.warn('Received non-JSON message from gateway:', ev.data, err)
       return
     }
 
@@ -257,7 +254,6 @@ export class GatewayClient {
         this._handleResponse(frame as ResponseFrame)
         break
       default:
-        console.log('[GatewayClient] Unknown frame type:', frame)
     }
   }
 
@@ -275,7 +271,7 @@ export class GatewayClient {
     const cbs = this.listeners.get(event)
     if (cbs) {
       for (const cb of cbs) {
-        try { cb(payload) } catch (e) { console.error('[GatewayClient] Event listener error:', e) }
+        try { cb(payload) } catch (err) { logger.error('Event listener threw:', err) }
       }
     }
 
@@ -286,7 +282,7 @@ export class GatewayClient {
   private _handleResponse(frame: ResponseFrame): void {
     const req = this.pending.get(frame.id)
     if (!req) {
-      console.warn('[GatewayClient] Unmatched response id:', frame.id)
+      logger.warn('Unmatched response id:', frame.id)
       return
     }
 
@@ -302,7 +298,7 @@ export class GatewayClient {
   }
 
   private async _doHandshake(): Promise<void> {
-    console.log('[GatewayClient] Performing connect handshake…')
+    logger.debug('Performing connect handshake…')
 
     // Build device identity only when we already hold a deviceToken
     // (i.e. the device was previously paired). Sending an unsolicited device
@@ -334,7 +330,7 @@ export class GatewayClient {
           nonce: this.challengeNonce,
         }
       } catch (err) {
-        console.error('[GatewayClient] Failed to build device identity:', err)
+        logger.warn('Failed to build device identity, connecting without it:', err)
       }
     }
 
@@ -344,7 +340,6 @@ export class GatewayClient {
       auth: { token: this.token, ...(this.deviceToken ? { deviceToken: this.deviceToken } : {}) },
       ...(device ? { device } : {}),
       client: {
-        // Use same identity as official CLI (we know this works)
         id: 'cli',
         version: 'dev',
         platform: 'electron',
@@ -353,16 +348,6 @@ export class GatewayClient {
       minProtocol: 3,
       maxProtocol: 3,
     }
-    
-    console.log('[GatewayClient] Connect params (full device details):', JSON.stringify({
-      ...params,
-      auth: params.auth?.token ? { token: '***', deviceToken: params.auth.deviceToken ? '***' : undefined } : params.auth,
-      device: device ? {
-        ...device,
-        signature: device.signature.substring(0, 20) + '... (len=' + device.signature.length + ')',
-        publicKey: device.publicKey.substring(0, 20) + '... (len=' + device.publicKey.length + ')',
-      } : undefined
-    }, null, 2))
 
     try {
       // Temporarily allow calls during handshaking
@@ -383,41 +368,30 @@ export class GatewayClient {
       })
 
       if ((payload as Record<string, unknown>).type === 'hello-ok') {
-        console.log('[GatewayClient] Handshake complete — connected!')
-        console.log('[GatewayClient] Full hello-ok payload:', JSON.stringify(payload, null, 2))
-
         // Extract maxPayload from policy if available
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const snapshot = (payload as any).snapshot
         if (snapshot?.policy?.maxPayload) {
           this.gatewayMaxPayload = snapshot.policy.maxPayload
-          console.log('[GatewayClient] Gateway maxPayload:', this.gatewayMaxPayload)
         }
 
         // Extract and persist deviceToken from hello-ok
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const authPayload = (payload as any).auth
-        console.log('[GatewayClient] Auth payload:', authPayload)
-        
         if (authPayload?.deviceToken) {
           this.deviceToken = authPayload.deviceToken
           this.onDeviceToken?.(authPayload.deviceToken)
         }
 
-        // Extract granted scopes
-        if (authPayload?.scopes) {
-          this.grantedScopes = authPayload.scopes
-          console.log('[GatewayClient] Granted scopes:', this.grantedScopes)
-        } else {
-          console.warn('[GatewayClient] NO SCOPES in auth payload!')
-        }
-
+        logger.info('Handshake complete — connected')
         this.retryCount = 0
         this._setStatus('connected')
       } else {
-        console.error('[GatewayClient] Unexpected handshake payload:', payload)
+        logger.warn('Unexpected handshake response:', payload)
         this._setStatus(prevStatus)
       }
     } catch (err) {
-      console.error('[GatewayClient] Handshake failed:', err)
+      logger.error('Handshake failed:', err)
       this._setStatus('error')
       this.ws?.close()
     }
@@ -425,14 +399,14 @@ export class GatewayClient {
 
   private _scheduleReconnect(): void {
     if (this.retryCount >= this.maxRetries) {
-      console.error(`[GatewayClient] Max retries (${this.maxRetries}) reached`)
+      logger.error(`Max retries (${this.maxRetries}) reached — giving up`)
       this._setStatus('error')
       return
     }
 
     const delay = Math.min(BASE_DELAY * Math.pow(2, this.retryCount), MAX_DELAY)
     this.retryCount++
-    console.log(`[GatewayClient] Reconnecting in ${delay}ms (attempt ${this.retryCount})`)
+    logger.debug(`Reconnecting in ${delay}ms (attempt ${this.retryCount})`)
     this._setStatus('connecting')
     this.reconnectTimer = setTimeout(() => this._connect(), delay)
   }

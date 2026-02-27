@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { GatewayClient } from '../lib/gateway-client'
 import type { SessionInfo, SessionsListResponse, ConnectionStatus } from '../types/protocol'
+import { logger } from '../lib/logger'
 
 const DEFAULT_SESSION_KEY = 'agent:main:main'
 
@@ -30,7 +31,7 @@ export function useSessions(client: GatewayClient | null, status: ConnectionStat
       )
       setSessions(activeSessions)
     } catch (err) {
-      console.error('[useSessions] Failed to list sessions:', err)
+      logger.error('Failed to list sessions:', err)
     } finally {
       setLoading(false)
     }

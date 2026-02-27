@@ -1,4 +1,5 @@
 import ReactMarkdown from 'react-markdown'
+import { logger } from '../lib/logger'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -57,7 +58,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         // Remove the markdown image from text
         text = text.replace(fullMatch, '')
       } catch (err) {
-        console.error('[MessageBubble] Failed to extract data URI:', err)
+        logger.warn('Failed to parse image data from message:', err)
       }
     }
     
