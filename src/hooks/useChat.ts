@@ -123,7 +123,7 @@ export function useChat(
 
       if (ev.state === 'delta') {
         const text = extractText(ev.message)
-        const attachments = filterLargeAttachments(ev.message.attachments)
+        const attachments = filterLargeAttachments(ev.message?.attachments)
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -142,7 +142,7 @@ export function useChat(
         })
       } else if (ev.state === 'final') {
         const text = extractText(ev.message)
-        const attachments = filterLargeAttachments(ev.message.attachments)
+        const attachments = filterLargeAttachments(ev.message?.attachments)
         // Check if this run was locally initiated — if not, it came from another client
         const isExternalRun = ev.runId != null && ev.runId !== activeRunIdRef.current
         setMessages((prev) => {
@@ -154,7 +154,7 @@ export function useChat(
               text,
               attachments,
               streaming: false,
-              timestamp: ev.message.timestamp,
+              timestamp: ev.message?.timestamp,
             }
             return updated
           }
@@ -163,7 +163,7 @@ export function useChat(
             role: 'assistant' as const,
             text,
             attachments,
-            timestamp: ev.message.timestamp,
+            timestamp: ev.message?.timestamp,
             streaming: false,
           }]
         })
