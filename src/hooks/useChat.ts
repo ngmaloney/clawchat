@@ -100,9 +100,10 @@ export function useChat(
   const messagesCacheRef = useRef<Map<string, DisplayMessage[]>>(new Map())
   // Ref to loadHistory so event handlers always call the latest version
   const loadHistoryRef = useRef<((sessionKey: string) => Promise<void>) | null>(null)
-  // Tracks whether a delta arrived before final — set synchronously in event handler
-  // so it's reliable regardless of React's async state batching
-  const receivedDeltaRef = useRef(false)
+  // Set to true synchronously when user initiates a send, before any async work.
+  // Cleared on final/error. Lets the final handler distinguish "we sent this"
+  // from "another client sent this" without relying on React state or async acks.
+  const pendingLocalSendRef = useRef(false)
 
   // Keep ref in sync
   sessionKeyRef.current = activeSessionKey
@@ -124,7 +125,6 @@ export function useChat(
       if (ev.sessionKey !== sessionKeyRef.current) return
 
       if (ev.state === 'delta') {
-        receivedDeltaRef.current = true
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message?.attachments)
         setMessages((prev) => {
@@ -146,13 +146,10 @@ export function useChat(
       } else if (ev.state === 'final') {
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message?.attachments)
-        // Check synchronously before any async work: if we received at least one
-        // delta event, this run was initiated locally (streaming messages exist).
-        // If no delta arrived, this run came from another client — reload history
-        // to surface their user message. Using a ref (not React state) is critical
-        // here because setState updaters run async during React's render phase.
-        const wasLocalRun = receivedDeltaRef.current
-        receivedDeltaRef.current = false
+        // pendingLocalSendRef is set synchronously in send() before any async work,
+        // so it's always accurate regardless of React batching or ack timing.
+        const wasLocalRun = pendingLocalSendRef.current
+        pendingLocalSendRef.current = false
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -181,7 +178,7 @@ export function useChat(
           void loadHistoryRef.current?.(sessionKeyRef.current)
         }
       } else if (ev.state === 'error') {
-        receivedDeltaRef.current = false
+        pendingLocalSendRef.current = false
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -269,7 +266,7 @@ export function useChat(
       if (isDifferentSession || hasNoCache) {
         // Only reset streaming state on an actual session change, not every render
         activeRunIdRef.current = null
-        receivedDeltaRef.current = false
+        pendingLocalSendRef.current = false
         setIsStreaming(false)
         void loadHistoryRef.current?.(activeSessionKey)
         lastLoadedSessionRef.current = activeSessionKey
@@ -278,7 +275,7 @@ export function useChat(
       setMessages([])
       lastLoadedSessionRef.current = null
       activeRunIdRef.current = null
-      receivedDeltaRef.current = false
+      pendingLocalSendRef.current = false
       setIsStreaming(false)
     }
     // If disconnected but session key exists, keep existing messages
@@ -298,6 +295,7 @@ export function useChat(
     }
     setMessages((prev) => [...prev, userMsg])
     setIsStreaming(true)
+    pendingLocalSendRef.current = true
 
     try {
       const params: {
@@ -329,6 +327,7 @@ export function useChat(
         errorMsg = `**📎 File too large to send**\n\nThis attachment exceeds the ${maxPayloadMB}MB gateway limit.\n\n**Quick fix:** Try compressing or resizing the image first.\n\n**Advanced:** You can increase the gateway limit by editing \`~/.openclaw/openclaw.json\` - see docs.openclaw.ai for details.`
       }
       
+      pendingLocalSendRef.current = false
       setMessages((prev) => [...prev, {
         id: newMsgId(),
         role: 'assistant',
