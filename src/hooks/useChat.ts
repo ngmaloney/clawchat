@@ -100,6 +100,9 @@ export function useChat(
   const messagesCacheRef = useRef<Map<string, DisplayMessage[]>>(new Map())
   // Ref to loadHistory so event handlers always call the latest version
   const loadHistoryRef = useRef<((sessionKey: string) => Promise<void>) | null>(null)
+  // Tracks whether a delta arrived before final — set synchronously in event handler
+  // so it's reliable regardless of React's async state batching
+  const receivedDeltaRef = useRef(false)
 
   // Keep ref in sync
   sessionKeyRef.current = activeSessionKey
@@ -121,6 +124,7 @@ export function useChat(
       if (ev.sessionKey !== sessionKeyRef.current) return
 
       if (ev.state === 'delta') {
+        receivedDeltaRef.current = true
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message?.attachments)
         setMessages((prev) => {
@@ -142,14 +146,15 @@ export function useChat(
       } else if (ev.state === 'final') {
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message?.attachments)
-        // If we received delta events, we were streaming this run locally.
-        // If not, this run was triggered by another client — reload history to
-        // surface their user message. Using this observable state avoids a
-        // race condition where the chat.send ack arrives after the final event.
-        let hadStreamingMessage = false
+        // Check synchronously before any async work: if we received at least one
+        // delta event, this run was initiated locally (streaming messages exist).
+        // If no delta arrived, this run came from another client — reload history
+        // to surface their user message. Using a ref (not React state) is critical
+        // here because setState updaters run async during React's render phase.
+        const wasLocalRun = receivedDeltaRef.current
+        receivedDeltaRef.current = false
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
-          hadStreamingMessage = idx >= 0
           if (idx >= 0) {
             const updated = [...prev]
             updated[idx] = {
@@ -172,10 +177,11 @@ export function useChat(
         })
         activeRunIdRef.current = null
         setIsStreaming(false)
-        if (!hadStreamingMessage) {
+        if (!wasLocalRun) {
           void loadHistoryRef.current?.(sessionKeyRef.current)
         }
       } else if (ev.state === 'error') {
+        receivedDeltaRef.current = false
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -263,6 +269,7 @@ export function useChat(
       if (isDifferentSession || hasNoCache) {
         // Only reset streaming state on an actual session change, not every render
         activeRunIdRef.current = null
+        receivedDeltaRef.current = false
         setIsStreaming(false)
         void loadHistoryRef.current?.(activeSessionKey)
         lastLoadedSessionRef.current = activeSessionKey
@@ -271,6 +278,7 @@ export function useChat(
       setMessages([])
       lastLoadedSessionRef.current = null
       activeRunIdRef.current = null
+      receivedDeltaRef.current = false
       setIsStreaming(false)
     }
     // If disconnected but session key exists, keep existing messages
