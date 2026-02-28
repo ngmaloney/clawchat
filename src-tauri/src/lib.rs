@@ -142,19 +142,35 @@ fn ssh_connect(config: SSHConfig) -> SSHConnectResult {
     let home = std::env::var("HOME").unwrap_or_default();
     let key_path = config.private_key_path.replace('~', &home);
 
-    let child = match Command::new("ssh")
-        .args([
-            "-N",
-            "-o", "StrictHostKeyChecking=accept-new",
-            "-o", "ExitOnForwardFailure=yes",
-            "-o", "ServerAliveInterval=30",
-            "-o", "BatchMode=yes",
-            "-L", &format!("{}:127.0.0.1:{}", local_port, config.remote_port),
-            "-p", &config.port.to_string(),
-            "-i", &key_path,
-            &format!("{}@{}", config.username, config.host),
-        ])
-        .spawn()
+    // On macOS, GUI apps don't inherit SSH_AUTH_SOCK from the shell.
+    // Query launchctl so passphrase-protected keys work in production builds.
+    let ssh_auth_sock = std::env::var("SSH_AUTH_SOCK").unwrap_or_else(|_| {
+        Command::new("launchctl")
+            .args(["getenv", "SSH_AUTH_SOCK"])
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default()
+    });
+
+    let mut cmd = Command::new("ssh");
+    cmd.args([
+        "-N",
+        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "ExitOnForwardFailure=yes",
+        "-o", "ServerAliveInterval=30",
+        "-o", "BatchMode=yes",
+        "-L", &format!("{}:127.0.0.1:{}", local_port, config.remote_port),
+        "-p", &config.port.to_string(),
+        "-i", &key_path,
+        &format!("{}@{}", config.username, config.host),
+    ]);
+    if !ssh_auth_sock.is_empty() {
+        cmd.env("SSH_AUTH_SOCK", &ssh_auth_sock);
+    }
+
+    let child = match cmd.spawn()
     {
         Ok(c) => c,
         Err(e) => return SSHConnectResult { success: false, local_port: None, error: Some(e.to_string()) },
