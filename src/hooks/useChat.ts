@@ -411,7 +411,18 @@ export function useChat(
     } catch (err) {
       logger.warn('chat.abort failed:', err)
     }
-    // Streaming end will be handled by the final/error event
+    // Don't rely on the gateway sending a final/error event after abort —
+    // clear streaming state immediately so the UI responds to the button click.
+    activeRunIdRef.current = null
+    pendingLocalSendRef.current = false
+    setIsStreaming(false)
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
+      if (idx < 0) return prev
+      const updated = [...prev]
+      updated[idx] = { ...updated[idx], streaming: false }
+      return updated
+    })
   }, [client, status])
 
   return {
