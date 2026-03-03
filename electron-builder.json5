@@ -10,12 +10,17 @@
     "dist",
     "dist-electron"
   ],
+  "afterSign": "electron/notarize.cjs",
   "mac": {
     "target": [
       "dmg"
     ],
     "artifactName": "${productName}-Mac-${version}.${ext}",
-    "icon": "public/icon.png"
+    "icon": "public/icon.png",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "electron/entitlements.mac.plist",
+    "entitlementsInherit": "electron/entitlements.mac.plist"
   },
   "win": {
     "target": [
