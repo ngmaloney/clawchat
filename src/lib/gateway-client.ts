@@ -302,9 +302,9 @@ export class GatewayClient {
 
     // Build device identity only when we already hold a deviceToken
     // (i.e. the device was previously paired). Sending an unsolicited device
-    // field to a token-auth gateway causes "device signature invalid".
+    // field to a token-auth gateway causes rejection ("not-paired").
     let device: DeviceIdentity | undefined
-    if (this.challengeNonce) {
+    if (this.deviceToken && this.challengeNonce) {
       try {
         const identity = await getOrCreateKeyPair()
         const deviceId = await getDeviceId(identity)
