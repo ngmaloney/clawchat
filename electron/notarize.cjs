@@ -1,5 +1,6 @@
 "use strict";
 
+const { existsSync } = require("fs");
 const { notarize } = require("@electron/notarize");
 
 /**
@@ -22,6 +23,12 @@ exports.default = async function notarizing(context) {
 
   const appName = context.packager.appInfo.productFilename;
   const appPath = `${appOutDir}/${appName}.app`;
+
+  // afterSign fires for every artifact (app, DMG, etc). Only notarize the .app.
+  if (!existsSync(appPath)) {
+    console.log(`Skipping notarization — ${appPath} not found (non-app artifact)`);
+    return;
+  }
 
   console.log(`Notarizing ${appPath}...`);
 
