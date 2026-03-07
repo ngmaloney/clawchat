@@ -346,7 +346,9 @@ export function useChat(
   }, [activeSessionKey, status])
 
   const send = useCallback(async (text: string, attachments?: ChatAttachment[]) => {
-    if (!client || status !== 'connected' || !text.trim()) return
+    const hasText = text.trim().length > 0
+    const hasAttachments = attachments && attachments.length > 0
+    if (!client || status !== 'connected' || (!hasText && !hasAttachments)) return
 
     // Append user message immediately
     const userMsg: DisplayMessage = {
