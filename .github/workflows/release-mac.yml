@@ -11,6 +11,8 @@ on:
 jobs:
   build-mac:
     runs-on: macos-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
