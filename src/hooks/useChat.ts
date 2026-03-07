@@ -143,7 +143,7 @@ export function useChat(
       logger.warn('Stream stall detected — no delta for', STREAM_STALL_MS, 'ms')
       clearStalledStream()
     }, STREAM_STALL_MS)
-  }, [clearStalledStream, STREAM_STALL_MS])
+  }, [clearStalledStream])
 
   // When connection drops while streaming, clear the stuck state immediately
   useEffect(() => {
