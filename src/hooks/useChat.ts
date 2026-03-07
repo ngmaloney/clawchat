@@ -35,6 +35,9 @@ function newMsgId(): string {
   return `msg-${++_msgId}-${Date.now()}`
 }
 
+// Max time to wait after last delta before declaring stream stalled
+const STREAM_STALL_MS = 90_000
+
 function uuid(): string {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
@@ -105,10 +108,51 @@ export function useChat(
   // Cleared on final/error. Lets the final handler distinguish "we sent this"
   // from "another client sent this" without relying on React state or async acks.
   const pendingLocalSendRef = useRef(false)
+  // Timestamp of last delta received — used to detect stalled streams
+  const lastDeltaTimeRef = useRef<number | null>(null)
+  // Timeout handle for stream staleness check
+  const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Keep ref in sync
   sessionKeyRef.current = activeSessionKey
-  
+
+  // Clear stalled streaming state — marks stuck bubble as errored and resets streaming
+  const clearStalledStream = useCallback(() => {
+    if (streamTimeoutRef.current) {
+      clearTimeout(streamTimeoutRef.current)
+      streamTimeoutRef.current = null
+    }
+    lastDeltaTimeRef.current = null
+    activeRunIdRef.current = null
+    pendingLocalSendRef.current = false
+    setIsStreaming(false)
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.streaming)
+      if (idx < 0) return prev
+      const updated = [...prev]
+      updated[idx] = { ...updated[idx], streaming: false, error: 'Response interrupted — connection lost or timed out.' }
+      return updated
+    })
+  }, [])
+
+  // Reset stall timer whenever a delta arrives
+  const resetStallTimer = useCallback(() => {
+    lastDeltaTimeRef.current = Date.now()
+    if (streamTimeoutRef.current) clearTimeout(streamTimeoutRef.current)
+    streamTimeoutRef.current = setTimeout(() => {
+      logger.warn('Stream stall detected — no delta for', STREAM_STALL_MS, 'ms')
+      clearStalledStream()
+    }, STREAM_STALL_MS)
+  }, [clearStalledStream, STREAM_STALL_MS])
+
+  // When connection drops while streaming, clear the stuck state immediately
+  useEffect(() => {
+    if (status !== 'connected' && isStreaming) {
+      logger.warn('Connection lost while streaming — clearing stuck streaming state')
+      clearStalledStream()
+    }
+  }, [status, isStreaming, clearStalledStream])
+
   // Cache current messages when they change
   useEffect(() => {
     if (activeSessionKey && messages.length > 0) {
@@ -126,6 +170,7 @@ export function useChat(
       if (ev.sessionKey !== sessionKeyRef.current) return
 
       if (ev.state === 'delta') {
+        resetStallTimer()
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message?.attachments)
         setMessages((prev) => {
@@ -145,6 +190,11 @@ export function useChat(
           }]
         })
       } else if (ev.state === 'final') {
+        if (streamTimeoutRef.current) {
+          clearTimeout(streamTimeoutRef.current)
+          streamTimeoutRef.current = null
+        }
+        lastDeltaTimeRef.current = null
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message?.attachments)
         // pendingLocalSendRef is set synchronously in send() before any async work,
@@ -179,6 +229,11 @@ export function useChat(
           void loadHistoryRef.current?.(sessionKeyRef.current)
         }
       } else if (ev.state === 'error') {
+        if (streamTimeoutRef.current) {
+          clearTimeout(streamTimeoutRef.current)
+          streamTimeoutRef.current = null
+        }
+        lastDeltaTimeRef.current = null
         pendingLocalSendRef.current = false
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
@@ -204,8 +259,14 @@ export function useChat(
       }
     })
 
-    return unsub
-  }, [client])
+    return () => {
+      unsub()
+      if (streamTimeoutRef.current) {
+        clearTimeout(streamTimeoutRef.current)
+        streamTimeoutRef.current = null
+      }
+    }
+  }, [client, resetStallTimer])
 
   // Load history when session changes
   const loadHistory = useCallback(async (sessionKey: string) => {
