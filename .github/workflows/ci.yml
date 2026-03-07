@@ -2,31 +2,58 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, feature/tauri-swap, chore/tauri-apple-builds]
   pull_request:
     branches: [main]
 
 jobs:
-  build:
+  lint-typecheck:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Build
-        run: npm run build:ci
+      - name: Build frontend
+        run: npm run build:frontend
+
+  build-tauri:
+    needs: lint-typecheck
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Tauri app (unsigned)
+        uses: tauri-apps/tauri-action@v0
         env:
-          CI: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --bundles app

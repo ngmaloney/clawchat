@@ -4,78 +4,79 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
-  release:
-    runs-on: ${{ matrix.os }}
-    
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-    
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v4
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install Linux dependencies (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libarchive-tools
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Electron app
-        run: npm run build:ci
-
-      - name: List release directory (debug)
-        run: |
-          echo "Contents of release directory:"
-          ls -R release/ || echo "No release directory found"
-        shell: bash
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-${{ matrix.os }}
-          path: |
-            release/**/*.dmg
-            release/**/*.AppImage
-            release/**/*.exe
-          if-no-files-found: warn
-
-  publish:
-    needs: release
-    runs-on: ubuntu-latest
+  build:
     permissions:
       contents: write
-    
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            label: mac-arm64
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            label: mac-x64
+          - platform: ubuntu-22.04
+            args: ''
+            label: linux-x64
+          - platform: windows-latest
+            args: ''
+            label: windows-x64
+
+    runs-on: ${{ matrix.platform }}
+    name: Build (${{ matrix.label }})
+
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - uses: actions/checkout@v4
 
-      - name: List artifacts (debug)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.label }}
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
-          echo "Downloaded artifacts:"
-          ls -R artifacts/
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing — no-ops on non-mac platforms
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          files: |
-            artifacts/**/*.dmg
-            artifacts/**/*.AppImage
-            artifacts/**/*.exe
-          draft: false
+          tagName: ${{ github.ref_name }}
+          releaseName: ClawChat ${{ github.ref_name }}
+          releaseDraft: true
           prerelease: false
+          generateReleaseNotes: true
+          args: ${{ matrix.args }}
