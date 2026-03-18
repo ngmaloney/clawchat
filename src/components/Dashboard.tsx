@@ -42,10 +42,11 @@ export function Dashboard({ status, client, gatewayUrl, isSshTunnel, onDisconnec
   // Fetch agent identity on connect
   useEffect(() => {
     if (status !== 'connected' || !client) {
-      setAgentIdentity(null)
       return
     }
+    let cancelled = false
     client.call('agent.identity.get', {}).then((res) => {
+      if (cancelled) return
       const identity = res as unknown as AgentIdentity
       if (identity?.name) {
         setAgentIdentity(identity)
@@ -54,6 +55,10 @@ export function Dashboard({ status, client, gatewayUrl, isSshTunnel, onDisconnec
     }).catch((err) => {
       logger.warn('Failed to fetch agent identity:', err)
     })
+    return () => {
+      cancelled = true
+      setAgentIdentity(null)
+    }
   }, [status, client])
 
   return (
