@@ -313,8 +313,8 @@ export class GatewayClient {
         
         const signature = await signChallenge(identity, {
           deviceId,
-          clientId: 'control-ui',
-          clientMode: 'webchat',
+          clientId: 'cli',
+          clientMode: 'cli',
           role: 'operator',
           scopes: ['operator.read', 'operator.write', 'operator.approvals', 'operator.pairing'],
           signedAtMs: signedAt,
@@ -340,10 +340,10 @@ export class GatewayClient {
       auth: { token: this.token, ...(this.deviceToken ? { deviceToken: this.deviceToken } : {}) },
       ...(device ? { device } : {}),
       client: {
-        id: 'control-ui',
+        id: 'cli',
         version: 'dev',
         platform: 'electron',
-        mode: 'webchat',
+        mode: 'cli',
       },
       minProtocol: 3,
       maxProtocol: 3,
