@@ -11,6 +11,8 @@ interface ChatViewProps {
   status: ConnectionStatus
   onSend: (text: string) => void
   onAbort: () => void
+  botAvatar?: string
+  botName?: string
 }
 
 export function ChatView({
@@ -20,6 +22,8 @@ export function ChatView({
   status,
   onSend,
   onAbort,
+  botAvatar,
+  botName,
 }: ChatViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const isNearBottomRef = useRef(true)
@@ -102,7 +106,7 @@ export function ChatView({
         )}
 
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
+          <MessageBubble key={msg.id} message={msg} botAvatar={botAvatar} botName={botName} />
         ))}
 
         {/* Typing indicator when streaming but no delta yet */}

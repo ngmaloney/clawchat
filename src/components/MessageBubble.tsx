@@ -10,6 +10,8 @@ import { useMemo, useState } from 'react'
 
 interface MessageBubbleProps {
   message: DisplayMessage
+  botAvatar?: string
+  botName?: string
 }
 
 function formatTime(ts?: string | number): string {
@@ -55,7 +57,10 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
-function BotAvatar() {
+function BotAvatar({ src, name }: { src?: string; name?: string }) {
+  const avatarSrc = src || 'icon.png'
+  const isEmoji = !src || (!src.startsWith('http') && !src.startsWith('data:') && !src.includes('/') && src.length <= 4)
+
   return (
     <div style={{
       width: '24px',
@@ -65,17 +70,27 @@ function BotAvatar() {
       overflow: 'hidden',
       marginRight: '0.5rem',
       marginTop: '0.125rem',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isEmoji ? '#2a2a4a' : undefined,
+      fontSize: isEmoji ? '14px' : undefined,
     }}>
-      <img
-        src="icon.png"
-        alt=""
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      />
+      {isEmoji ? (
+        <span>{src || '🤖'}</span>
+      ) : (
+        <img
+          src={avatarSrc}
+          alt={name || 'Assistant'}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => { e.currentTarget.src = 'icon.png' }}
+        />
+      )}
     </div>
   )
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, botAvatar, botName }: MessageBubbleProps) {
   const isUser = message.role === 'user'
 
   // Extract data URI images from markdown and convert to attachments
@@ -125,7 +140,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       boxSizing: 'border-box',
     }}>
       {/* Bot avatar */}
-      {!isUser && <BotAvatar />}
+      {!isUser && <BotAvatar src={botAvatar} name={botName} />}
 
       <div style={{
         maxWidth: isUser ? '75%' : '80%',
