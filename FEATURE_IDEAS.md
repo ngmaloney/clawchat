@@ -58,4 +58,14 @@ Ideas to revisit for future enhancements.
 
 ---
 
-_Last updated: 2026-02-25_
+## 📋 Slash Commands / Gateway Features
+- **`/cron` or `/tasks`** — list, add, remove, enable/disable scheduled jobs from ClawChat via `cron.list` / `cron.add` / `cron.remove` gateway API. Render results as structured cards (job name, schedule, next run, status toggle)
+- **`/models`** — model picker via `models.list`, let users switch models per session
+- **`/devices`** — device pairing management via `device.pair.list` / `device.pair.approve`. Approve new clients directly from ClawChat
+- **Exec approvals** — handle `exec.approval.requested` events, show approve/deny UI for sandbox/elevated commands
+- **Rich slash command responses** — render system responses (cron list, model list, device list) as styled cards instead of plain text
+- **Command palette** — `Cmd+K` for quick access to non-chat actions (switch model, manage cron, approve devices)
+
+---
+
+_Last updated: 2026-03-18_

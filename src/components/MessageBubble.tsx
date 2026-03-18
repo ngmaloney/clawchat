@@ -6,7 +6,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import type { DisplayMessage } from '../hooks/useChat'
 import type { ComponentPropsWithoutRef } from 'react'
 import { MessageAttachment } from './MessageAttachment'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 interface MessageBubbleProps {
   message: DisplayMessage
@@ -20,6 +20,59 @@ function formatTime(ts?: string | number): string {
   } catch {
     return ''
   }
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        })
+      }}
+      style={{
+        position: 'absolute',
+        top: '0.375rem',
+        right: '0.375rem',
+        background: 'rgba(255,255,255,0.08)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '4px',
+        color: '#aaa',
+        fontSize: '0.7rem',
+        padding: '0.2rem 0.5rem',
+        cursor: 'pointer',
+        opacity: 0.6,
+        transition: 'opacity 0.15s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.opacity = '1' }}
+      onMouseLeave={e => { e.currentTarget.style.opacity = '0.6' }}
+      title="Copy code"
+    >
+      {copied ? '✓' : 'Copy'}
+    </button>
+  )
+}
+
+function BotAvatar() {
+  return (
+    <div style={{
+      width: '24px',
+      height: '24px',
+      minWidth: '24px',
+      borderRadius: '50%',
+      overflow: 'hidden',
+      marginRight: '0.5rem',
+      marginTop: '0.125rem',
+    }}>
+      <img
+        src="icon.png"
+        alt=""
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+    </div>
+  )
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
@@ -44,18 +97,13 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     for (const match of matches) {
       const [fullMatch, alt, mimeType, base64Data] = match
       try {
-        // Clean up base64 data
         const cleanedBase64 = base64Data.replace(/\s/g, '')
-        
-        // Create attachment object (only small data URIs reach here)
         extracted.push({
           type: 'image',
           mimeType,
           fileName: alt || 'image.png',
           content: cleanedBase64,
         })
-        
-        // Remove the markdown image from text
         text = text.replace(fullMatch, '')
       } catch (err) {
         logger.warn('Failed to parse image data from message:', err)
@@ -72,22 +120,28 @@ export function MessageBubble({ message }: MessageBubbleProps) {
     <div style={{
       display: 'flex',
       justifyContent: isUser ? 'flex-end' : 'flex-start',
-      padding: '0.25rem 1rem',
+      padding: '0.375rem 1rem',
       width: '100%',
       boxSizing: 'border-box',
     }}>
+      {/* Bot avatar */}
+      {!isUser && <BotAvatar />}
+
       <div style={{
-        maxWidth: '80%',
+        maxWidth: isUser ? '75%' : '80%',
         minWidth: '60px',
-        padding: '0.625rem 0.875rem',
-        borderRadius: isUser ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-        backgroundColor: isUser ? '#e85d04' : '#16213e',
+        padding: isUser ? '0.5rem 0.875rem' : '0.75rem 1rem',
+        borderRadius: isUser ? '16px 16px 4px 16px' : '2px 16px 16px 16px',
+        backgroundColor: isUser ? '#e85d04' : '#1a1f35',
         color: isUser ? '#fff' : '#e0e0e0',
-        border: isUser ? 'none' : '1px solid #2a2a4a',
+        border: isUser ? 'none' : '1px solid rgba(255,255,255,0.06)',
         fontSize: '0.875rem',
-        lineHeight: 1.5,
+        lineHeight: 1.6,
         wordBreak: 'break-word',
         position: 'relative',
+        boxShadow: isUser
+          ? '0 1px 3px rgba(232, 93, 4, 0.2)'
+          : '0 1px 4px rgba(0, 0, 0, 0.3)',
       }}>
         {/* Error state */}
         {message.error && (
@@ -118,56 +172,93 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                 code(props: ComponentPropsWithoutRef<'code'> & { inline?: boolean; className?: string }) {
                   const { inline, className, children, ...rest } = props
                   const match = /language-(\w+)/.exec(className || '')
-                  if (!inline && match) {
+                  const codeString = String(children).replace(/\n$/, '')
+
+                  // Block code (with or without language)
+                  if (!inline && (match || codeString.includes('\n'))) {
                     return (
-                      <SyntaxHighlighter
-                        style={vscDarkPlus}
-                        language={match[1]}
-                        PreTag="div"
-                        customStyle={{
-                          margin: '0.5rem 0',
-                          borderRadius: '6px',
-                          fontSize: '0.8rem',
-                        }}
-                      >
-                        {String(children).replace(/\n$/, '')}
-                      </SyntaxHighlighter>
+                      <div style={{ position: 'relative', margin: '0.625rem 0' }}>
+                        {match && (
+                          <div style={{
+                            fontSize: '0.65rem',
+                            color: '#888',
+                            padding: '0.25rem 0.75rem',
+                            backgroundColor: '#0d1117',
+                            borderTopLeftRadius: '8px',
+                            borderTopRightRadius: '8px',
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                            fontFamily: 'monospace',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                          }}>
+                            {match[1]}
+                          </div>
+                        )}
+                        <CopyButton text={codeString} />
+                        <SyntaxHighlighter
+                          style={vscDarkPlus}
+                          language={match ? match[1] : 'text'}
+                          PreTag="div"
+                          customStyle={{
+                            margin: 0,
+                            borderRadius: match ? '0 0 8px 8px' : '8px',
+                            fontSize: '0.8rem',
+                            padding: '0.75rem',
+                            backgroundColor: '#0d1117',
+                            border: '1px solid rgba(255,255,255,0.06)',
+                            borderTop: match ? 'none' : undefined,
+                          }}
+                        >
+                          {codeString}
+                        </SyntaxHighlighter>
+                      </div>
                     )
                   }
+
+                  // Inline code
                   return (
                     <code
                       {...rest}
                       className={className}
                       style={{
-                        backgroundColor: 'rgba(0,0,0,0.3)',
-                        padding: '0.15rem 0.35rem',
-                        borderRadius: '3px',
-                        fontSize: '0.8rem',
-                        fontFamily: 'monospace',
+                        backgroundColor: 'rgba(232, 93, 4, 0.12)',
+                        color: '#f0a070',
+                        padding: '0.15rem 0.4rem',
+                        borderRadius: '4px',
+                        fontSize: '0.82rem',
+                        fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+                        border: '1px solid rgba(232, 93, 4, 0.15)',
                       }}
                     >
                       {children}
                     </code>
                   )
                 },
+                pre(props: ComponentPropsWithoutRef<'pre'>) {
+                  // Let the code component handle all rendering
+                  return <>{props.children}</>
+                },
                 a(props: ComponentPropsWithoutRef<'a'>) {
                   return (
                     <a
                       {...props}
-                      style={{ color: '#60a5fa', textDecoration: 'underline' }}
+                      style={{ color: '#60a5fa', textDecoration: 'none', borderBottom: '1px solid rgba(96, 165, 250, 0.3)' }}
                       target="_blank"
                       rel="noopener noreferrer"
                     />
                   )
                 },
                 p(props: ComponentPropsWithoutRef<'p'>) {
-                  return <p {...props} style={{ margin: '0.35rem 0' }} />
+                  return <p {...props} style={{ margin: '0.4rem 0' }} />
                 },
                 ul(props: ComponentPropsWithoutRef<'ul'>) {
-                  return <ul {...props} style={{ margin: '0.35rem 0', paddingLeft: '1.25rem' }} />
+                  return <ul {...props} style={{ margin: '0.4rem 0', paddingLeft: '1.25rem' }} />
                 },
                 ol(props: ComponentPropsWithoutRef<'ol'>) {
-                  return <ol {...props} style={{ margin: '0.35rem 0', paddingLeft: '1.25rem' }} />
+                  return <ol {...props} style={{ margin: '0.4rem 0', paddingLeft: '1.25rem' }} />
+                },
+                li(props: ComponentPropsWithoutRef<'li'>) {
+                  return <li {...props} style={{ margin: '0.2rem 0' }} />
                 },
                 blockquote(props: ComponentPropsWithoutRef<'blockquote'>) {
                   return (
@@ -175,11 +266,55 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                       {...props}
                       style={{
                         borderLeft: '3px solid #e85d04',
-                        margin: '0.35rem 0',
+                        margin: '0.5rem 0',
                         paddingLeft: '0.75rem',
-                        color: '#aaa',
+                        color: '#999',
+                        fontStyle: 'italic',
                       }}
                     />
+                  )
+                },
+                h1(props: ComponentPropsWithoutRef<'h1'>) {
+                  return <h1 {...props} style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0.75rem 0 0.375rem', color: '#fff' }} />
+                },
+                h2(props: ComponentPropsWithoutRef<'h2'>) {
+                  return <h2 {...props} style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.625rem 0 0.3rem', color: '#fff' }} />
+                },
+                h3(props: ComponentPropsWithoutRef<'h3'>) {
+                  return <h3 {...props} style={{ fontSize: '1rem', fontWeight: 600, margin: '0.5rem 0 0.25rem', color: '#eee' }} />
+                },
+                strong(props: ComponentPropsWithoutRef<'strong'>) {
+                  return <strong {...props} style={{ color: '#fff', fontWeight: 600 }} />
+                },
+                hr() {
+                  return <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '0.75rem 0' }} />
+                },
+                table(props: ComponentPropsWithoutRef<'table'>) {
+                  return (
+                    <div style={{ overflowX: 'auto', margin: '0.5rem 0' }}>
+                      <table {...props} style={{ borderCollapse: 'collapse', width: '100%', fontSize: '0.82rem' }} />
+                    </div>
+                  )
+                },
+                th(props: ComponentPropsWithoutRef<'th'>) {
+                  return (
+                    <th {...props} style={{
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      padding: '0.4rem 0.6rem',
+                      textAlign: 'left',
+                      backgroundColor: 'rgba(255,255,255,0.04)',
+                      fontWeight: 600,
+                      color: '#fff',
+                    }} />
+                  )
+                },
+                td(props: ComponentPropsWithoutRef<'td'>) {
+                  return (
+                    <td {...props} style={{
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      padding: '0.4rem 0.6rem',
+                      textAlign: 'left',
+                    }} />
                   )
                 },
                 img(props: ComponentPropsWithoutRef<'img'>) {
@@ -188,7 +323,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                   if (props.src?.startsWith('data:')) {
                     return null
                   }
-                  return <img {...props} style={{ maxWidth: '100%', borderRadius: '6px' }} />
+                  return <img {...props} style={{ maxWidth: '100%', borderRadius: '8px', margin: '0.25rem 0' }} />
                 },
               }}
             >
@@ -213,9 +348,9 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         {/* Timestamp */}
         {message.timestamp && !message.streaming && (
           <div style={{
-            fontSize: '0.65rem',
-            color: isUser ? 'rgba(255,255,255,0.6)' : '#555',
-            marginTop: '0.25rem',
+            fontSize: '0.625rem',
+            color: isUser ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.25)',
+            marginTop: '0.375rem',
             textAlign: 'right',
           }}>
             {formatTime(message.timestamp)}
