@@ -1,9 +1,18 @@
+import { useEffect, useState } from 'react'
 import { ChatView } from './ChatView'
 import { StatusBar } from './StatusBar'
 import type { ConnectionStatus } from '../types/protocol'
 import type { GatewayClient } from '../lib/gateway-client'
 import { useSessions } from '../hooks/useSessions'
 import { useChat } from '../hooks/useChat'
+import { logger } from '../lib/logger'
+
+interface AgentIdentity {
+  name: string
+  avatar: string
+  emoji?: string
+  agentId: string
+}
 
 interface DashboardProps {
   status: ConnectionStatus
@@ -14,6 +23,8 @@ interface DashboardProps {
 }
 
 export function Dashboard({ status, client, gatewayUrl, isSshTunnel, onDisconnect }: DashboardProps) {
+  const [agentIdentity, setAgentIdentity] = useState<AgentIdentity | null>(null)
+
   const {
     sessions,
     activeSessionKey,
@@ -27,6 +38,28 @@ export function Dashboard({ status, client, gatewayUrl, isSshTunnel, onDisconnec
     isStreaming,
     historyLoading,
   } = useChat(client, status, activeSessionKey)
+
+  // Fetch agent identity on connect
+  useEffect(() => {
+    if (status !== 'connected' || !client) {
+      return
+    }
+    let cancelled = false
+    client.call('agent.identity.get', {}).then((res) => {
+      if (cancelled) return
+      const identity = res as unknown as AgentIdentity
+      if (identity?.name) {
+        setAgentIdentity(identity)
+        logger.info('Agent identity:', identity.name, identity.avatar ? '(has avatar)' : '(no avatar)')
+      }
+    }).catch((err) => {
+      logger.warn('Failed to fetch agent identity:', err)
+    })
+    return () => {
+      cancelled = true
+      setAgentIdentity(null)
+    }
+  }, [status, client])
 
   return (
     <div style={{
@@ -53,6 +86,8 @@ export function Dashboard({ status, client, gatewayUrl, isSshTunnel, onDisconnec
           status={status}
           onSend={send}
           onAbort={abort}
+          botAvatar={agentIdentity?.avatar}
+          botName={agentIdentity?.name}
         />
       </div>
 
