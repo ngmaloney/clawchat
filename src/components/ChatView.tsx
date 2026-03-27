@@ -1,6 +1,7 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useMemo, useEffect, useRef, useCallback } from 'react'
 import { MessageBubble } from './MessageBubble'
 import { MessageInput } from './MessageInput'
+import { isSentinelMessage } from '../lib/sentinel'
 import type { DisplayMessage } from '../hooks/useChat'
 import type { ConnectionStatus } from '../types/protocol'
 
@@ -42,19 +43,26 @@ export function ChatView({
     el.scrollTop = el.scrollHeight
   }, [])
 
+  // Filter out agent sentinel messages (HEARTBEAT_OK, NO_REPLY) at the
+  // rendering layer — raw data is preserved in the hook / cache.
+  const visibleMessages = useMemo(
+    () => messages.filter((msg) => !isSentinelMessage(msg.text)),
+    [messages],
+  )
+
   // Auto-scroll on new messages if user is near bottom
   useEffect(() => {
     if (isNearBottomRef.current) {
       scrollToBottom()
     }
-  }, [messages, scrollToBottom])
+  }, [visibleMessages, scrollToBottom])
 
   // Scroll to bottom on history load
   useEffect(() => {
-    if (!historyLoading && messages.length > 0) {
+    if (!historyLoading && visibleMessages.length > 0) {
       scrollToBottom()
     }
-  }, [historyLoading, messages.length, scrollToBottom])
+  }, [historyLoading, visibleMessages.length, scrollToBottom])
 
   const isDisabled = status !== 'connected'
 
@@ -90,7 +98,7 @@ export function ChatView({
           </div>
         )}
 
-        {!historyLoading && messages.length === 0 && (
+        {!historyLoading && visibleMessages.length === 0 && (
           <div style={{
             flex: 1,
             display: 'flex',
@@ -105,12 +113,12 @@ export function ChatView({
           </div>
         )}
 
-        {messages.map((msg) => (
+        {visibleMessages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} botAvatar={botAvatar} botName={botName} />
         ))}
 
         {/* Typing indicator when streaming but no delta yet */}
-        {isStreaming && !messages.some((m) => m.streaming) && (
+        {isStreaming && !visibleMessages.some((m) => m.streaming) && (
           <div style={{
             padding: '0.25rem 1rem',
             display: 'flex',
