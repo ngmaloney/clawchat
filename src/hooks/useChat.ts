@@ -104,10 +104,13 @@ export function useChat(
   const messagesCacheRef = useRef<Map<string, DisplayMessage[]>>(new Map())
   // Ref to loadHistory so event handlers always call the latest version
   const loadHistoryRef = useRef<((sessionKey: string) => Promise<void>) | null>(null)
-  // Set to true synchronously when user initiates a send, before any async work.
-  // Cleared on final/error. Lets the final handler distinguish "we sent this"
-  // from "another client sent this" without relying on React state or async acks.
-  const pendingLocalSendRef = useRef(false)
+  // Track locally-initiated run IDs. A run is local if we called send() for it.
+  // Using a Set instead of a boolean so concurrent sends don't clobber each other.
+  // Cleared per-run on final/error — NOT globally.
+  const localRunIdsRef = useRef<Set<string>>(new Set())
+  // Flag set synchronously in send() before the async ack returns.
+  // If we receive a final before the ack (edge case), we assume local.
+  const pendingSendCountRef = useRef(0)
   // Timestamp of last delta received — used to detect stalled streams
   const lastDeltaTimeRef = useRef<number | null>(null)
   // Timeout handle for stream staleness check
@@ -124,7 +127,8 @@ export function useChat(
     }
     lastDeltaTimeRef.current = null
     activeRunIdRef.current = null
-    pendingLocalSendRef.current = false
+    pendingSendCountRef.current = 0
+    localRunIdsRef.current.clear()
     setIsStreaming(false)
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.streaming)
@@ -160,6 +164,22 @@ export function useChat(
     }
   }, [activeSessionKey, messages])
 
+  // Helper: check if a run was locally initiated
+  const isLocalRun = useCallback((runId?: string): boolean => {
+    // If we have a pending send that hasn't received its ack yet, assume local
+    if (pendingSendCountRef.current > 0) return true
+    // If the runId is in our local set, it's ours
+    if (runId && localRunIdsRef.current.has(runId)) return true
+    return false
+  }, [])
+
+  // Helper: clean up a completed local run
+  const cleanupRun = useCallback((runId?: string) => {
+    if (runId) {
+      localRunIdsRef.current.delete(runId)
+    }
+  }, [])
+
   // Subscribe to chat events
   useEffect(() => {
     if (!client) return
@@ -168,6 +188,8 @@ export function useChat(
       const ev = payload as unknown as ChatEventPayload
       // Only process events for the active session
       if (ev.sessionKey !== sessionKeyRef.current) return
+
+      const runId = (ev as unknown as Record<string, unknown>).runId as string | undefined
 
       if (ev.state === 'delta') {
         resetStallTimer()
@@ -197,10 +219,8 @@ export function useChat(
         lastDeltaTimeRef.current = null
         const text = extractText(ev.message)
         const attachments = filterLargeAttachments(ev.message?.attachments)
-        // pendingLocalSendRef is set synchronously in send() before any async work,
-        // so it's always accurate regardless of React batching or ack timing.
-        const wasLocalRun = pendingLocalSendRef.current
-        pendingLocalSendRef.current = false
+        const wasLocalRun = isLocalRun(runId)
+        cleanupRun(runId)
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -234,7 +254,7 @@ export function useChat(
           streamTimeoutRef.current = null
         }
         lastDeltaTimeRef.current = null
-        pendingLocalSendRef.current = false
+        cleanupRun(runId)
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
           if (idx >= 0) {
@@ -266,7 +286,7 @@ export function useChat(
         streamTimeoutRef.current = null
       }
     }
-  }, [client, resetStallTimer])
+  }, [client, resetStallTimer, isLocalRun, cleanupRun])
 
   // Load history when session changes
   const loadHistory = useCallback(async (sessionKey: string) => {
@@ -329,7 +349,8 @@ export function useChat(
       if (isDifferentSession || hasNoCache) {
         // Only reset streaming state on an actual session change, not every render
         activeRunIdRef.current = null
-        pendingLocalSendRef.current = false
+        pendingSendCountRef.current = 0
+        localRunIdsRef.current.clear()
         setIsStreaming(false)
         void loadHistoryRef.current?.(activeSessionKey)
         lastLoadedSessionRef.current = activeSessionKey
@@ -338,7 +359,8 @@ export function useChat(
       setMessages([])
       lastLoadedSessionRef.current = null
       activeRunIdRef.current = null
-      pendingLocalSendRef.current = false
+      pendingSendCountRef.current = 0
+      localRunIdsRef.current.clear()
       setIsStreaming(false)
     }
     // If disconnected but session key exists, keep existing messages
@@ -360,7 +382,9 @@ export function useChat(
     }
     setMessages((prev) => [...prev, userMsg])
     setIsStreaming(true)
-    pendingLocalSendRef.current = true
+    // Increment pending count SYNCHRONOUSLY before any async work.
+    // This ensures isLocalRun() returns true even before the ack arrives.
+    pendingSendCountRef.current++
 
     try {
       const params: {
@@ -381,6 +405,10 @@ export function useChat(
       const ack = await client.call('chat.send', params) as unknown as ChatSendAck
 
       activeRunIdRef.current = ack.runId ?? null
+      // Register the runId as local so final/error handlers know it's ours
+      if (ack.runId) {
+        localRunIdsRef.current.add(ack.runId)
+      }
     } catch (err) {
       logger.error('Failed to send message:', err)
       let errorMsg = err instanceof Error ? err.message : 'Failed to send message'
@@ -392,7 +420,6 @@ export function useChat(
         errorMsg = `**📎 File too large to send**\n\nThis attachment exceeds the ${maxPayloadMB}MB gateway limit.\n\n**Quick fix:** Try compressing or resizing the image first.\n\n**Advanced:** You can increase the gateway limit by editing \`~/.openclaw/openclaw.json\` - see docs.openclaw.ai for details.`
       }
       
-      pendingLocalSendRef.current = false
       setMessages((prev) => [...prev, {
         id: newMsgId(),
         role: 'assistant',
@@ -401,6 +428,9 @@ export function useChat(
         error: errorMsg,
       }])
       setIsStreaming(false)
+    } finally {
+      // Always decrement pending count, whether send succeeded or failed
+      pendingSendCountRef.current = Math.max(0, pendingSendCountRef.current - 1)
     }
   }, [client, status])
 
@@ -416,7 +446,8 @@ export function useChat(
     // Don't rely on the gateway sending a final/error event after abort —
     // clear streaming state immediately so the UI responds to the button click.
     activeRunIdRef.current = null
-    pendingLocalSendRef.current = false
+    pendingSendCountRef.current = 0
+    localRunIdsRef.current.clear()
     setIsStreaming(false)
     setMessages((prev) => {
       const idx = prev.findIndex((m) => m.streaming && m.role === 'assistant')
