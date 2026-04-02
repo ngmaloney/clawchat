@@ -26,17 +26,19 @@ function makeMockClient() {
   return { client, emitChat }
 }
 
-function makeFinalEvent(sessionKey = 'agent:main:main', content = 'Hello from assistant') {
+function makeFinalEvent(sessionKey = 'agent:main:main', content = 'Hello from assistant', runId = 'run-1') {
   return {
     sessionKey,
+    runId,
     state: 'final',
     message: { role: 'assistant', content, timestamp: new Date().toISOString() },
   }
 }
 
-function makeDeltaEvent(sessionKey = 'agent:main:main', content = 'Hello') {
+function makeDeltaEvent(sessionKey = 'agent:main:main', content = 'Hello', runId = 'run-1') {
   return {
     sessionKey,
+    runId,
     state: 'delta',
     message: { role: 'assistant', content },
   }
