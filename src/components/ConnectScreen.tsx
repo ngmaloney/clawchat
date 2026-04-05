@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { ConnectionStatus } from '../types/protocol'
+import type { BackendType } from '../lib/gateway-client'
 
 interface ConnectScreenProps {
-  onConnect: (url: string, token: string) => void
+  onConnect: (url: string, token: string, backend: BackendType) => void
   status: ConnectionStatus
 }
 
@@ -28,13 +29,18 @@ const labelStyle = {
 }
 
 export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
+  const [backend, setBackend] = useState<BackendType>('openclaw')
   const [mode, setMode] = useState<ConnectMode>('direct')
 
-  // Direct mode
-  const [url, setUrl] = useState('ws://localhost:18789')
-  const [token, setToken] = useState('')
+  // OpenClaw state
+  const [ocUrl, setOcUrl] = useState('ws://localhost:18789')
+  const [ocToken, setOcToken] = useState('')
 
-  // SSH mode
+  // Channel state
+  const [chUrl, setChUrl] = useState('ws://tc1.home.wrox.us:9700')
+  const [chToken, setChToken] = useState('')
+
+  // SSH mode (OpenClaw only)
   const [sshHost, setSshHost] = useState('')
   const [sshPort, setSshPort] = useState('22')
   const [sshUser, setSshUser] = useState('')
@@ -47,18 +53,24 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
   useEffect(() => {
     const load = async () => {
       try {
-        const savedUrl = await window.api.store.get('gatewayUrl') as string
-        const savedToken = await window.api.store.get('token') as string
+        const savedBackend = await window.api.store.get('backend') as BackendType
         const savedMode = await window.api.store.get('connectMode') as ConnectMode
+        const savedOcUrl = await window.api.store.get('gatewayUrl') as string
+        const savedOcToken = await window.api.store.get('token') as string
+        const savedChUrl = await window.api.store.get('channelUrl') as string
+        const savedChToken = await window.api.store.get('channelToken') as string
         const savedSshHost = await window.api.store.get('sshHost') as string
         const savedSshPort = await window.api.store.get('sshPort') as string
         const savedSshUser = await window.api.store.get('sshUser') as string
         const savedSshKeyPath = await window.api.store.get('sshKeyPath') as string
         const savedSshRemotePort = await window.api.store.get('sshRemotePort') as string
 
-        if (savedUrl) setUrl(savedUrl)
-        if (savedToken) setToken(savedToken)
+        if (savedBackend) setBackend(savedBackend)
         if (savedMode) setMode(savedMode)
+        if (savedOcUrl) setOcUrl(savedOcUrl)
+        if (savedOcToken) setOcToken(savedOcToken)
+        if (savedChUrl) setChUrl(savedChUrl)
+        if (savedChToken) setChToken(savedChToken)
         if (savedSshHost) setSshHost(savedSshHost)
         if (savedSshPort) setSshPort(savedSshPort)
         if (savedSshUser) setSshUser(savedSshUser)
@@ -71,19 +83,26 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
     load()
   }, [])
 
+  // Active URL/token based on backend
+  const url = backend === 'openclaw' ? ocUrl : chUrl
+  const token = backend === 'openclaw' ? ocToken : chToken
+  const setUrl = backend === 'openclaw' ? setOcUrl : setChUrl
+  const setToken = backend === 'openclaw' ? setOcToken : setChToken
+
+  const showSsh = backend === 'openclaw' && mode === 'ssh'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSshError('')
 
-    if (mode === 'direct') {
-      if (url && token) onConnect(url, token)
+    if (!showSsh) {
+      if (url && (token || backend === 'channel')) onConnect(url, token, backend)
       return
     }
 
-    // SSH tunnel mode
+    // SSH tunnel mode (OpenClaw only)
     setIsTunneling(true)
     try {
-      // Persist SSH config
       await window.api.store.set('connectMode', 'ssh')
       await window.api.store.set('sshHost', sshHost)
       await window.api.store.set('sshPort', sshPort)
@@ -104,8 +123,7 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
         return
       }
 
-      // Connect via the local tunnel port
-      onConnect(`ws://127.0.0.1:${result.localPort}`, token)
+      onConnect(`ws://127.0.0.1:${result.localPort}`, token, backend)
     } catch (err) {
       setSshError((err as Error).message || 'SSH tunnel failed')
     } finally {
@@ -132,53 +150,83 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
         <h1 style={{ fontSize: '1.5rem', fontWeight: 600, margin: '0.5rem 0', color: '#fff' }}>
           ClawChat
         </h1>
-        <p style={{ color: '#888', fontSize: '0.875rem' }}>
-          Connect to your OpenClaw Gateway
-        </p>
       </div>
 
-      {/* Mode toggle */}
+      {/* Backend tabs */}
       <div style={{
         display: 'flex',
-        backgroundColor: '#16213e',
-        borderRadius: '8px',
-        padding: '3px',
+        width: '320px',
         marginBottom: '1.25rem',
-        border: '1px solid #2a2a4a',
+        borderBottom: '2px solid #2a2a4a',
       }}>
-        {(['direct', 'ssh'] as ConnectMode[]).map((m) => (
+        {([['openclaw', 'OpenClaw'], ['channel', 'Claude Channels']] as const).map(([b, label]) => (
           <button
-            key={m}
+            key={b}
             type="button"
-            onClick={() => { setMode(m); setSshError('') }}
+            onClick={() => { setBackend(b as BackendType); setSshError('') }}
             style={{
-              padding: '0.375rem 1rem',
-              borderRadius: '6px',
+              flex: 1,
+              padding: '0.625rem 0',
               border: 'none',
-              fontSize: '0.8rem',
-              fontWeight: 500,
+              borderBottom: backend === b ? '2px solid #e85d04' : '2px solid transparent',
+              marginBottom: '-2px',
+              fontSize: '0.875rem',
+              fontWeight: 600,
               cursor: 'pointer',
-              backgroundColor: mode === m ? '#e85d04' : 'transparent',
-              color: mode === m ? '#fff' : '#888',
+              backgroundColor: 'transparent',
+              color: backend === b ? '#fff' : '#666',
               transition: 'all 0.15s',
             }}
           >
-            {m === 'direct' ? 'Direct' : 'SSH Tunnel'}
+            {label}
           </button>
         ))}
       </div>
 
+      {/* Connection mode toggle — OpenClaw only */}
+      {backend === 'openclaw' && (
+        <div style={{
+          display: 'flex',
+          backgroundColor: '#16213e',
+          borderRadius: '8px',
+          padding: '3px',
+          marginBottom: '1.25rem',
+          border: '1px solid #2a2a4a',
+        }}>
+          {(['direct', 'ssh'] as ConnectMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { setMode(m); setSshError('') }}
+              style={{
+                padding: '0.375rem 1rem',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '0.8rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                backgroundColor: mode === m ? '#e85d04' : 'transparent',
+                color: mode === m ? '#fff' : '#888',
+                transition: 'all 0.15s',
+              }}
+            >
+              {m === 'direct' ? 'Direct' : 'SSH Tunnel'}
+            </button>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '320px' }}>
 
-        {mode === 'direct' ? (
+        {!showSsh ? (
           <>
             <div>
-              <label style={labelStyle}>Gateway URL</label>
+              <label style={labelStyle}>{backend === 'openclaw' ? 'Gateway URL' : 'Channel URL'}</label>
               <input
                 type="text"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                placeholder="ws://localhost:18789"
+                placeholder={backend === 'openclaw' ? 'ws://localhost:18789' : 'ws://host:9700'}
                 disabled={isConnecting}
                 style={inputStyle}
               />
@@ -189,7 +237,7 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
                 type="password"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                placeholder="Enter your Gateway token"
+                placeholder={backend === 'openclaw' ? 'Enter your Gateway token' : 'Enter your Channel token'}
                 disabled={isConnecting}
                 style={inputStyle}
               />
@@ -273,7 +321,7 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
 
         <button
           type="submit"
-          disabled={isConnecting || !token || (mode === 'direct' ? !url : !sshHost || !sshUser)}
+          disabled={isConnecting || (backend === 'openclaw' && !token) || (!showSsh ? !url : !sshHost || !sshUser)}
           style={{
             padding: '0.75rem',
             backgroundColor: isConnecting ? '#333' : '#e85d04',
@@ -301,7 +349,7 @@ export function ConnectScreen({ onConnect, status }: ConnectScreenProps) {
           </p>
         )}
 
-        {mode === 'ssh' && (
+        {showSsh && (
           <p style={{ color: '#555', fontSize: '0.7rem', textAlign: 'center', margin: 0 }}>
             Connects via SSH key auth. Password auth not supported.
           </p>
