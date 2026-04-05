@@ -36,9 +36,12 @@ interface PendingRequest {
   timer: ReturnType<typeof setTimeout>
 }
 
+export type BackendType = 'openclaw' | 'channel'
+
 export interface GatewayClientOptions {
   url: string
   token: string
+  backend?: BackendType
   deviceToken?: string
   onStatusChange?: (status: ConnectionStatus) => void
   onEvent?: (event: string, payload: Record<string, unknown>) => void
@@ -74,6 +77,7 @@ export class GatewayClient {
 
   private readonly url: string
   private readonly token: string
+  private readonly backend: BackendType
   private readonly onStatusChange?: (status: ConnectionStatus) => void
   private readonly onEvent?: (event: string, payload: Record<string, unknown>) => void
   private readonly onDeviceToken?: (token: string) => void
@@ -83,6 +87,7 @@ export class GatewayClient {
   constructor(opts: GatewayClientOptions) {
     this.url = opts.url
     this.token = opts.token
+    this.backend = opts.backend ?? 'openclaw'
     this.deviceToken = opts.deviceToken
     this.onStatusChange = opts.onStatusChange
     this.onEvent = opts.onEvent
@@ -176,7 +181,7 @@ export class GatewayClient {
     this.ws = ws
 
     ws.onopen = () => {
-      logger.debug('WS open, awaiting connect.challenge…')
+      logger.debug(`WS open (${this.backend}), awaiting handshake…`)
       this._setStatus('handshaking')
     }
 
@@ -260,7 +265,15 @@ export class GatewayClient {
   private _handleEvent(frame: EventFrame): void {
     const { event, payload } = frame
 
-    // Handle connect.challenge → capture nonce, then perform handshake
+    // Channel backend: connect.welcome means we're connected (no handshake needed)
+    if (event === 'connect.welcome') {
+      logger.info('Channel connected — no handshake required')
+      this.retryCount = 0
+      this._setStatus('connected')
+      return
+    }
+
+    // OpenClaw backend: connect.challenge → capture nonce, then perform handshake
     if (event === 'connect.challenge') {
       this.challengeNonce = (payload.nonce as string) ?? null
       this._doHandshake()

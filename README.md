@@ -4,7 +4,7 @@
 
 <h1 align="center">💬 ClawChat</h1>
 
-<p align="center"><strong>Simple desktop client for remote OpenClaw gateways.</strong><br>No Node.js, no npm, no complexity — just download and connect.</p>
+<p align="center"><strong>Desktop client for OpenClaw gateways and Claude Code channels.</strong><br>No Node.js, no npm, no complexity — just download and connect.</p>
 
 ---
 
@@ -16,26 +16,17 @@
 
 ## Why ClawChat?
 
-ClawChat fills a specific gap in the OpenClaw ecosystem: **simple desktop access to remote gateways**.
+ClawChat supports two backends:
 
-### When to use ClawChat:
+### OpenClaw Gateway
+Connect to remote [OpenClaw](https://github.com/openclaw/openclaw) gateways over WebSocket. Full protocol v3 support including streaming deltas, session management, and SSH tunneling.
 
-- ✅ Your gateway runs on a **server** (Linux/remote Mac) and you want to connect from your laptop
-- ✅ You're on **Windows or Linux** (no official OpenClaw desktop app for these platforms)
-- ✅ You want a **lightweight client** without installing Node.js, npm, or managing the gateway locally
-- ✅ You prefer **SSH/Tailscale** setups with a remote gateway
-
-### When to use the official OpenClaw macOS app:
-
-- ✅ You want to **run the gateway locally** on your Mac
-- ✅ You need **native macOS integrations** (TCC permissions, system notifications, etc.)
-- ✅ You want the app to **manage the gateway lifecycle** for you
-
-**Both are great!** Pick the client that matches your setup. [Learn more about OpenClaw](https://github.com/openclaw/openclaw).
+### Claude Code Channels
+Connect to a [Claude Code](https://claude.ai/code) instance running with a custom MCP channel server. Uses your Claude Max subscription — no API billing. Claude Code runs on a server (e.g., Docker), and ClawChat connects via WebSocket to the channel server.
 
 > **🎯 Quick Guide:**
-> - Run gateway locally on Mac? → [OpenClaw macOS App](https://github.com/openclaw/openclaw)
-> - Run gateway on a server (Linux/remote Mac)? → **ClawChat**
+> - Have an OpenClaw gateway? → Select **OpenClaw** tab on connect screen
+> - Have Claude Code + channel server? → Select **Claude Channels** tab
 > - Using Windows or Linux? → **ClawChat** (only cross-platform option)
 
 ---
@@ -50,16 +41,21 @@ Pre-built releases for macOS, Windows, and Linux are available on the [Releases]
 
 Or build from source (see [Quick Start](#quick-start) below).
 
-## Perfect for Remote Gateways
+## Perfect for Remote Backends
 
-ClawChat excels at connecting to **OpenClaw gateways running elsewhere** — whether that's a dedicated server, a home lab, or a cloud instance. 
+ClawChat connects to backends running elsewhere — whether that's a dedicated server, a home lab, or a cloud instance.
 
-**Common setup:**
-1. Run OpenClaw gateway on a Linux server or remote Mac (via SSH/Tailscale)
-2. Install ClawChat on your laptop (Mac, Windows, or Linux)
-3. Connect via WebSocket — no Node.js installation required on your laptop
+**OpenClaw setup:**
+1. Run OpenClaw gateway on a Linux server or remote Mac
+2. Install ClawChat on your laptop
+3. Connect via WebSocket (direct or SSH tunnel)
 
-Your conversations and credentials stay on your infrastructure. ClawChat is just a lightweight UI that talks to your gateway.
+**Claude Channels setup:**
+1. Run Claude Code in a Docker container with a channel server (MCP)
+2. The channel server exposes a WebSocket endpoint
+3. Install ClawChat on your laptop and connect
+
+Your conversations and credentials stay on your infrastructure. ClawChat is just a lightweight UI.
 
 ## Features
 
@@ -86,7 +82,7 @@ Node mode (camera, screen recording, system commands) is planned for a future re
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+
-- A running [OpenClaw Gateway](https://docs.openclaw.ai)
+- A running [OpenClaw Gateway](https://docs.openclaw.ai) or Claude Code channel server
 
 ### Install
 
@@ -112,18 +108,145 @@ Outputs packaged binaries to `release/` directory.
 
 ## Connecting
 
-### Local Gateway
+### OpenClaw Gateway
 
 1. Launch ClawChat
-2. Enter your gateway URL (e.g., `ws://localhost:18789`)
-3. Enter your gateway auth token
-4. Click **Connect**
+2. Select the **OpenClaw** tab
+3. Enter your gateway URL (e.g., `ws://localhost:18789`)
+4. Enter your gateway auth token
+5. Click **Connect**
 
-Your credentials are saved locally and the app will auto-connect on subsequent launches.
+For remote gateways, use the **SSH Tunnel** toggle to connect securely:
+
+```bash
+# Or manually from terminal:
+ssh -N -L 18789:127.0.0.1:18789 your-gateway-host
+```
+
+### Claude Code Channels
+
+1. Launch ClawChat
+2. Select the **Claude Channels** tab
+3. Enter your channel server URL (e.g., `ws://your-server:9700`)
+4. Click **Connect** (token is optional if the server doesn't require one)
+
+#### Setting up the channel server
+
+The channel server is an MCP server that runs as a subprocess of Claude Code. It bridges WebSocket connections from ClawChat to Claude Code's channel notification system.
+
+**Prerequisites:**
+- A server with Docker
+- Claude Max subscription
+- OAuth token from `claude setup-token`
+
+**1. Docker container setup:**
+
+Create a `docker-compose.yml`:
+
+```yaml
+services:
+  claude-code:
+    image: node:22-slim
+    container_name: claude-code
+    env_file:
+      - .env
+    working_dir: /workspace
+    ports:
+      - "9700:9700"
+    volumes:
+      - /path/to/workspace:/workspace
+      - claude-cache:/root/.claude
+    environment:
+      - TERM=xterm-256color
+      - COLORTERM=truecolor
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y git tmux vim ripgrep curl &&
+        npm install -g @anthropic-ai/claude-code &&
+        ln -sf /root/.claude/.claude.json /root/.claude.json &&
+        tail -f /dev/null
+      "
+    restart: unless-stopped
+
+volumes:
+  claude-cache:
+```
+
+Create `.env`:
+```
+CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-your-token-here
+```
+
+**2. Channel server:**
+
+Create `/workspace/channel-test/package.json`:
+```json
+{
+  "name": "channel-test",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ws": "^8.0.0",
+    "uuid": "^9.0.0"
+  }
+}
+```
+
+Create `/workspace/channel-test/server.mjs` — an MCP channel server that:
+- Connects to Claude Code over stdio (channel capability)
+- Exposes a WebSocket server on port 9700 for ClawChat
+- Translates between ClawChat's protocol and MCP channel notifications
+- Registers a `send_reply` tool for Claude to respond through
+
+See the [channel server source](https://github.com/ngmaloney/clawchat/blob/feature/channel-backend/channel-server-example.md) for the full implementation.
+
+Create `/workspace/.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "channel-test": {
+      "command": "node",
+      "args": ["/workspace/channel-test/server.mjs"],
+      "env": { "CHANNEL_PORT": "9700" }
+    }
+  }
+}
+```
+
+**3. First-time setup inside the container:**
+
+```bash
+# Install dependencies
+cd /workspace/channel-test && npm install
+
+# Set onboarding flags to skip the wizard
+node -e "
+const fs = require('fs');
+const d = JSON.parse(fs.readFileSync('/root/.claude/.claude.json','utf8'));
+d.hasCompletedOnboarding = true;
+d.theme = 'dark';
+fs.writeFileSync('/root/.claude/.claude.json', JSON.stringify(d, null, 2));
+"
+```
+
+**4. Start Claude Code with channels:**
+
+```bash
+tmux new-session -d -s claude "claude --permission-mode default \
+  --allowedTools mcp__channel-test__send_reply \
+  --dangerously-load-development-channels server:channel-test"
+```
+
+Accept the development channels warning when prompted. Claude will show "Listening for channel messages from: server:channel-test" when ready.
+
+**5. Add personality (optional):**
+
+Create `/workspace/CLAUDE.md` with a system prompt / personality. Claude Code reads this automatically every session.
 
 ## Using Slash Commands
 
-ClawChat supports OpenClaw slash commands for controlling your agent and session. Type `/` in the message input to see available commands:
+ClawChat supports OpenClaw slash commands when connected to an OpenClaw gateway. Type `/` in the message input to see available commands:
 
 - `/new` — Start a new session
 - `/model` — Show or switch models
@@ -134,24 +257,7 @@ ClawChat supports OpenClaw slash commands for controlling your agent and session
 - `/verbose` — Toggle verbose output
 - `/reset` — Reset the current session
 
-Commands autocomplete as you type. Just start typing `/` and select from the menu.
-
-### Remote Gateway via SSH Tunnel
-
-If your OpenClaw gateway runs on a different machine (e.g., a dedicated server), use SSH port forwarding to securely tunnel the connection:
-
-```bash
-ssh -N -L 18789:127.0.0.1:18789 your-gateway-host
-```
-
-Example:
-```bash
-ssh -N -L 18789:127.0.0.1:18789 ts140
-```
-
-Then connect ClawChat to `ws://localhost:18789` as if the gateway were local. The SSH tunnel encrypts all traffic between your desktop and the gateway server.
-
-> **Note:** For local WebSocket connections without device identity, ensure your gateway config has `gateway.controlUi.allowInsecureAuth: true` set.
+Commands autocomplete as you type.
 
 ## Tech Stack
 
@@ -165,7 +271,7 @@ Then connect ClawChat to `ws://localhost:18789` as if the gateway were local. Th
 
 ## Architecture
 
-ClawChat implements the OpenClaw Gateway Protocol v3, including proper handshake, request/response correlation, and event streaming.
+ClawChat implements the OpenClaw Gateway Protocol v3 and Claude Code channel protocol, including handshake, request/response correlation, and event streaming.
 
 ```
 electron/          # Main process (Node.js)
@@ -174,11 +280,12 @@ electron/          # Main process (Node.js)
 
 src/               # Renderer process (React)
   lib/
-    gateway-client.ts    # WebSocket protocol implementation
+    gateway-client.ts    # WebSocket protocol (OpenClaw + Channels)
   hooks/
     useGateway.ts        # Connection state management
     useChat.ts           # Message & session state
   components/
+    ConnectScreen.tsx    # Backend selection + auth
     Dashboard.tsx        # Main UI layout
     ChatView.tsx         # Message list
     MessageInput.tsx     # Input with file upload

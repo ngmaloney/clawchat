@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GatewayClient } from '../lib/gateway-client'
+import type { BackendType } from '../lib/gateway-client'
 import type { ConnectionStatus } from '../types/protocol'
 
 export type { ConnectionStatus }
@@ -7,6 +8,7 @@ export type { ConnectionStatus }
 interface UseGatewayOptions {
   url: string
   token: string
+  backend?: BackendType
   deviceToken?: string
   autoConnect?: boolean
 }
@@ -18,7 +20,7 @@ export interface GatewayHandle {
   disconnect: () => void
 }
 
-export function useGateway({ url, token, deviceToken, autoConnect = false }: UseGatewayOptions): GatewayHandle {
+export function useGateway({ url, token, backend, deviceToken, autoConnect = false }: UseGatewayOptions): GatewayHandle {
   const [status, setStatus] = useState<ConnectionStatus>('disconnected')
   const [client, setClient] = useState<GatewayClient | null>(null)
   // Internal ref for callbacks that need stable access without re-subscribing
@@ -26,11 +28,12 @@ export function useGateway({ url, token, deviceToken, autoConnect = false }: Use
 
   // Create / recreate the client when url or token change
   useEffect(() => {
-    if (!url || !token) return
+    if (!url || (!token && backend !== 'channel')) return
 
     const newClient = new GatewayClient({
       url,
       token,
+      backend,
       deviceToken,
       onStatusChange: (s) => setStatus(s),
       onDeviceToken: (dt) => {
@@ -51,7 +54,7 @@ export function useGateway({ url, token, deviceToken, autoConnect = false }: Use
       clientRef.current = null
       setClient(null)
     }
-  }, [url, token, deviceToken, autoConnect])
+  }, [url, token, backend, deviceToken, autoConnect])
 
   const connect = useCallback(() => {
     clientRef.current?.connect()
